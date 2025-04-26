@@ -27,13 +27,17 @@ mod consts;
 use core::panic::PanicInfo;
 
 use devices::cga; // shortcut for cga
-use devices::cga_print; // used to import code needed by println! 
+use devices::cga_print; // used to import code needed by println!
 use devices::keyboard; // shortcut for keyboard
 
 use kernel::cpu;
+use kernel::allocator;
 
 use user::aufgabe1::text_demo;
 use user::aufgabe1::keyboard_demo;
+use user::aufgabe2::heap_demo;
+use user::aufgabe2::sound_demo;
+
 
 fn aufgabe1() {
     text_demo::run();
@@ -41,13 +45,26 @@ fn aufgabe1() {
     keyboard_demo::run();
 }
 
+fn aufgabe2() {
+   heap_demo::run();
+   sound_demo::run();
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn startup() {
     kprintln!("Welcome to hhuTOS!");
-    
-    cga::CGA.lock().clear();
-    
-    aufgabe1();
+
+    // ---- Aufgabe 1 ----
+    // cga::CGA.lock().clear();
+    // aufgabe1();
+    // --------------------
+
+
+    // ---- Aufgabe 2 ----
+    // Speicherverwaltung initialisieren
+    allocator::init();
+    aufgabe2();
+    // --------------------
     
     loop{}
 }
