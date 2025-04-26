@@ -8,12 +8,12 @@
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
 
-use spin::Mutex;
-
-use crate::kernel::cpu as cpu;
-use crate::devices::key as key;
+use crate::devices::cga_print::print;
+use crate::devices::key;
 use crate::devices::key::Key;
+use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
+use spin::Mutex;
 
 /// Global thread-safe access to keyboard.
 /// Usage: let mut keyboard = keyboard::KEYBOARD.lock();
@@ -22,46 +22,38 @@ pub static KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard::new());
 
 /// Represents the keyboard.
 pub struct Keyboard {
-    code: u8,       // Keyboard byte
-    prefix: u8,     // Keyboard prefix
-    gather: Key,    // Last decoded key
-    leds: u8,       // LED status
+    code: u8,    // Keyboard byte
+    prefix: u8,  // Keyboard prefix
+    gather: Key, // Last decoded key
+    leds: u8,    // LED status
     control_port: IoPort,
-    data_port: IoPort
+    data_port: IoPort,
 }
 
 // Translation tables for ASCII codes
-static NORMAL_TAB: [u8;89] =
-    [
-        0, 0, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 225, 39, 8, 0, 113,
-        119, 101, 114, 116, 122, 117, 105, 111, 112, 129, 43, 13, 0, 97,
-        115, 100, 102, 103, 104, 106, 107, 108, 148, 132, 94, 0, 35, 121,
-        120, 99, 118, 98, 110, 109, 44, 46, 45, 0, 42, 0, 32, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 45, 0, 0, 0, 43, 0, 0, 0, 0,
-        0, 0, 0, 60, 0, 0
-    ];
+static NORMAL_TAB: [u8; 89] = [
+    0, 0, 49, 50, 51, 52, 53, 54, 55, 56, 57, 48, 225, 39, 8, 0, 113, 119, 101, 114, 116, 122, 117,
+    105, 111, 112, 129, 43, 13, 0, 97, 115, 100, 102, 103, 104, 106, 107, 108, 148, 132, 94, 0, 35,
+    121, 120, 99, 118, 98, 110, 109, 44, 46, 45, 0, 42, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 45, 0, 0, 0, 43, 0, 0, 0, 0, 0, 0, 0, 60, 0, 0,
+];
 
-static SHIFT_TAB: [u8;89] =
-    [
-        0, 0, 33, 34, 21, 36, 37, 38, 47, 40, 41, 61, 63, 96, 0, 0, 81,
-        87, 69, 82, 84, 90, 85, 73, 79, 80, 154, 42, 0, 0, 65, 83, 68,
-        70, 71, 72, 74, 75, 76, 153, 142, 248, 0, 39, 89, 88, 67, 86, 66,
-        78, 77, 59, 58, 95, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0
-    ];
+static SHIFT_TAB: [u8; 89] = [
+    0, 0, 33, 34, 21, 36, 37, 38, 47, 40, 41, 61, 63, 96, 0, 0, 81, 87, 69, 82, 84, 90, 85, 73, 79,
+    80, 154, 42, 0, 0, 65, 83, 68, 70, 71, 72, 74, 75, 76, 153, 142, 248, 0, 39, 89, 88, 67, 86,
+    66, 78, 77, 59, 58, 95, 0, 0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 62, 0, 0,
+];
 
-static ALT_TAB: [u8; 89] =
-    [
-        0, 0, 0, 253, 0, 0, 0, 0, 123, 91, 93, 125, 92, 0, 0, 0, 64, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 126, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 230, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 124, 0, 0
-    ];
+static ALT_TAB: [u8; 89] = [
+    0, 0, 0, 253, 0, 0, 0, 0, 123, 91, 93, 125, 92, 0, 0, 0, 64, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 126,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 230, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 124, 0, 0,
+];
 
-static ASC_NUM_TAB:[u8; 13] = [ 55, 56, 57, 45, 52, 53, 54, 43, 49, 50, 51, 48, 44 ];
+static ASC_NUM_TAB: [u8; 13] = [55, 56, 57, 45, 52, 53, 54, 43, 49, 50, 51, 48, 44];
 
-static SCAN_NUM_TAB: [u8; 13] = [  8, 9, 10, 53, 5, 6, 7, 27, 2, 3, 4, 11, 51 ];
+static SCAN_NUM_TAB: [u8; 13] = [8, 9, 10, 53, 5, 6, 7, 27, 2, 3, 4, 11, 51];
 
 // LED names
 const LED_CAPS_LOCK: u8 = 4;
@@ -70,12 +62,12 @@ const LED_SCROLL_LOCK: u8 = 1;
 
 // Constants needed for key decoding
 const BREAK_BIT: u8 = 0x80;
-const PREFIX1: u8   = 0xe0;
-const PREFIX2:u8    = 0xe1;
+const PREFIX1: u8 = 0xe0;
+const PREFIX2: u8 = 0xe1;
 
 // Keyboard IO-ports
-const KBD_CTRL_PORT:u16 = 0x64;    // Status- (R) u. Steuerregister (W)
-const KBD_DATA_PORT:u16 = 0x60;    // Ausgabe- (R) u. Eingabepuffer (W)
+const KBD_CTRL_PORT: u16 = 0x64; // Status- (R) u. Steuerregister (W)
+const KBD_DATA_PORT: u16 = 0x60; // Ausgabe- (R) u. Eingabepuffer (W)
 
 // Bits in the keyboard status register
 const KBD_OUTB: u8 = 0x01;
@@ -88,7 +80,7 @@ const KBD_CMD_SET_SPEED: u8 = 0xf3;
 const KBD_CMD_CPU_RESET: u8 = 0xfe;
 
 // Keyboard replies
-const KBD_REPLY_ACK:u8 = 0xfa;
+const KBD_REPLY_ACK: u8 = 0xfa;
 
 impl Keyboard {
     pub const fn new() -> Keyboard {
@@ -98,10 +90,10 @@ impl Keyboard {
             gather: Key::new(0, 0, 0),
             leds: 0,
             control_port: IoPort::new(KBD_CTRL_PORT),
-            data_port: IoPort::new(KBD_DATA_PORT)
+            data_port: IoPort::new(KBD_DATA_PORT),
         }
     }
-    
+
     /// Interpret the make and break codes of the keyboard.
     /// Return true if the key is complete, false if codes are missing.
     fn key_decoded(&mut self) -> bool {
@@ -120,15 +112,21 @@ impl Keyboard {
             self.code &= !BREAK_BIT; // A key's break code is the same as its make code, but with the break bit set.
             match self.code {
                 42 | 54 => {
-                    self.gather.set_shift (false);
+                    self.gather.set_shift(false);
                 }
                 56 => {
-                    if self.prefix == PREFIX1 { self.gather.set_alt_right(false); }
-                    else                      { self.gather.set_alt_left(false);  }
+                    if self.prefix == PREFIX1 {
+                        self.gather.set_alt_right(false);
+                    } else {
+                        self.gather.set_alt_left(false);
+                    }
                 }
                 29 => {
-                    if self.prefix == PREFIX1 { self.gather.set_ctrl_right(false);}
-                    else                      { self.gather.set_ctrl_left(false); }
+                    if self.prefix == PREFIX1 {
+                        self.gather.set_ctrl_right(false);
+                    } else {
+                        self.gather.set_ctrl_left(false);
+                    }
                 }
                 _ => { // All other keys
                 }
@@ -138,7 +136,7 @@ impl Keyboard {
             self.prefix = 0;
             return false;
         }
-        
+
         // A key has been pressed. For the modifier keys like SHIFT, ALT, NUM_LOCK etc.
         // only the internal state is changed. The return value 'false' indicates
         // that the keyboard input is not yet complete. For the other keys, ASCII
@@ -149,23 +147,31 @@ impl Keyboard {
                 self.gather.set_shift(true);
             }
             56 => {
-                if self.prefix == PREFIX1 { self.gather.set_alt_right(true);  }
-                else                      { self.gather.set_alt_left(true);   }
+                if self.prefix == PREFIX1 {
+                    self.gather.set_alt_right(true);
+                } else {
+                    self.gather.set_alt_left(true);
+                }
             }
             29 => {
-                if self.prefix == PREFIX1 { self.gather.set_ctrl_right(true); }
-                else                      { self.gather.set_ctrl_left(true);  }
+                if self.prefix == PREFIX1 {
+                    self.gather.set_ctrl_right(true);
+                } else {
+                    self.gather.set_ctrl_left(true);
+                }
             }
             58 => {
-                self.gather.set_caps_lock( !self.gather.get_caps_lock() );
+                self.gather.set_caps_lock(!self.gather.get_caps_lock());
                 self.set_led(LED_CAPS_LOCK, self.gather.get_caps_lock());
             }
             70 => {
-                self.gather.set_scroll_lock( !self.gather.get_scroll_lock() );
+                self.gather.set_scroll_lock(!self.gather.get_scroll_lock());
                 self.set_led(LED_SCROLL_LOCK, self.gather.get_scroll_lock());
             }
-            69 => { // Numlock or Break
-                if self.gather.get_ctrl_left() { // Break Key
+            69 => {
+                // Numlock or Break
+                if self.gather.get_ctrl_left() {
+                    // Break Key
                     // On old keyboards, the Break function could only be reached via
                     // Ctrl+NumLock. Modern MF-II keyboards send this code combination
                     // when Break is meant. The Break key normally does not deliver an
@@ -173,14 +179,15 @@ impl Keyboard {
                     // key is now complete.
                     self.get_ascii_code();
                     done = true;
-                }
-                else { // NumLock
-                    self.gather.set_num_lock( !self.gather.get_num_lock() );
+                } else {
+                    // NumLock
+                    self.gather.set_num_lock(!self.gather.get_num_lock());
                     self.set_led(LED_NUM_LOCK, self.gather.get_num_lock());
                 }
             }
 
-            _ => { // All other keys
+            _ => {
+                // All other keys
                 // Read ASCII code from the appropriate table -> Key is decoded
                 self.get_ascii_code();
                 done = true;
@@ -192,7 +199,6 @@ impl Keyboard {
         done
     }
 
-
     /// Calculate the ASCII code from the scancode and modifier bits.
     fn get_ascii_code(&mut self) {
         // Special case Scancode 53: This code is sent by both the minus key
@@ -200,58 +206,74 @@ impl Keyboard {
         // keypad. In order to get the correct code in both cases, a conversion
         // to the correct code of the division key must be performed
         // in the case of the numeric keypad.
-        if self.code == 53 && self.prefix == PREFIX1 { // Division key of numpad
+        if self.code == 53 && self.prefix == PREFIX1 {
+            // Division key of numpad
             self.gather.set_ascii('/' as u8);
             self.gather.set_scancode(key::SCAN_DIV);
         }
-
         // Choose the right table based on the modifier bits. For simplicity,
         // NumLock takes precedence over Alt, Shift and CapsLock. There is
         // no separate table for Ctrl.
-        else if self.gather.get_num_lock() && self.prefix == 0 &&
-            self.code >= 71 && self.code <= 83 {
+        else if self.gather.get_num_lock()
+            && self.prefix == 0
+            && self.code >= 71
+            && self.code <= 83
+        {
             // If numlock is enabled and one of the keys of the separate number block
             // (codes 71-83) is pressed, the ASCII and scancodes of the corresponding
             // number keys should be delivered instead of the scancodes of the cursor
             // keys. The keys of the cursor block (prefix == prefix1) should of course
             // still be able to be used for cursor control. By the way, they still send
             // a shift, but that should not matter.
-            self.gather.set_ascii(ASC_NUM_TAB[ (self.code - 71) as usize]);
-            self.gather.set_scancode(SCAN_NUM_TAB[ (self.code - 71) as usize]);
-        }
-        else if self.gather.get_alt_right() {
+            self.gather
+                .set_ascii(ASC_NUM_TAB[(self.code - 71) as usize]);
+            self.gather
+                .set_scancode(SCAN_NUM_TAB[(self.code - 71) as usize]);
+        } else if self.gather.get_alt_right() {
             self.gather.set_ascii(ALT_TAB[self.code as usize]);
             self.gather.set_scancode(self.code);
-        }
-        else if self.gather.get_shift() {
+        } else if self.gather.get_shift() {
             self.gather.set_ascii(SHIFT_TAB[self.code as usize]);
             self.gather.set_scancode(self.code);
-        }
-        else if self.gather.get_caps_lock() {
+        } else if self.gather.get_caps_lock() {
             // CapsLock is only active for the letters A-Z and 0-9.
-            if (self.code >= 16 && self.code <= 26) ||
-                (self.code >= 30 && self.code<= 40) ||
-                (self.code >= 44 && self.code <= 50) {
-                self.gather.set_ascii (SHIFT_TAB[self.code as usize]);
+            if (self.code >= 16 && self.code <= 26)
+                || (self.code >= 30 && self.code <= 40)
+                || (self.code >= 44 && self.code <= 50)
+            {
+                self.gather.set_ascii(SHIFT_TAB[self.code as usize]);
                 self.gather.set_scancode(self.code);
-            }
-            else {
+            } else {
                 self.gather.set_ascii(NORMAL_TAB[self.code as usize]);
                 self.gather.set_scancode(self.code);
             }
-        }
-        else {
+        } else {
             self.gather.set_ascii(NORMAL_TAB[self.code as usize]);
             self.gather.set_scancode(self.code);
         }
     }
-    
+
     /// Poll the keyboard controller until a key is pressed.
     /// Decode and return the key if it is complete.
     pub fn key_hit(&mut self) -> Key {
-        let invalid: Key = Default::default();  // nicht explizit initialisierte Tasten sind ungueltig
+        let invalid: Key = Default::default(); // nicht explizit initialisierte Tasten sind ungueltig
 
         /* Hier muss Code eingefuegt werden. */
+
+        let mut status: u8 = 0;
+        while (status & KBD_OUTB) == 0 || (status & KBD_AUXB) != 0 {
+            unsafe {
+                status = self.control_port.inb();
+            }
+        }
+        unsafe {
+            self.code = self.data_port.inb();
+        }
+        if self.key_decoded() {
+            self.gather
+        } else {
+            invalid
+        }
 
         /*****************************************************************************
          * Funktion:        key_hit                                                  *
@@ -272,21 +294,83 @@ impl Keyboard {
          *                  ungueltigen Wert zurueck, was mit Key::valid ()          *
          *                  ueberprueft werden kann.                                 *
          *****************************************************************************/
-
-        invalid
     }
-    
+
     /// Set the repeat rate of the keyboard (determined by the speed and delay).
-    /// 
+    ///
     /// The speed determines how fast repeated keys are sent.
     /// Valid values are between 0 (very fast) and 31 (very slow).
-    /// 
+    ///
     /// The delay determines how long a key must be pressed before the keyboard starts repeating it.
     /// Valid values are between 0 (minimum delay) and 3 (maximum delay).
     /// 0 = 250ms, 1 = 500ms, 2 = 750ms, 3 = 1000ms
     pub fn set_repeat_rate(&mut self, speed: u8, delay: u8) {
-
         /* Hier muss Code eingefuegt werden. */
+
+        // 1. Warten bis der Eingabepuffer leer ist → Bit-1 INPB im Status-Register prüfen
+        let mut status: u8 = 1;
+        while (status & KBD_INPB) != 0 {
+            unsafe {
+                status = self.control_port.inb();
+            }
+        }
+
+        // 2. Befehlsbyte in Data-Port schreiben
+        unsafe {
+            self.data_port.outb(KBD_CMD_SET_SPEED);
+        }
+
+        // 3. Warten bis eine Antwort vorliegt → Bit-0 OUTB im Status-Register prüfen
+        let mut status: u8 = 0;
+        while (status & KBD_OUTB) == 0 {
+            unsafe {
+                status = self.control_port.inb();
+            }
+        }
+
+        // 4. Antwort vom Data-Port einlesen
+        let data: u8;
+        unsafe {
+            data = self.data_port.inb();
+        }
+
+        // 5. Falls kein ACK vorliegt (= 0xFA) abbrechen und -1 zurückgeben
+        if data != KBD_REPLY_ACK {
+            println!("no ACK!!!");
+            return;
+        }
+
+        // 6. Sonst Datenbyte in Data-Port schreiben
+        let db: u8 = 0; // TODO
+        let byte: u8 = delay << 5 | db;
+        unsafe {
+            self.data_port.outb(byte);
+        }
+        println!(
+            "| speed: {:b} | delay: {:b} | together: {:b} |",
+            db, delay, byte
+        );
+
+        // 7. Warten bis eine Antwort vorliegt → Bit-0 im Status-Register prüfen
+        let mut status: u8 = 0;
+        while (status & KBD_OUTB) == 0 {
+            unsafe {
+                status = self.control_port.inb();
+            }
+        }
+
+        // 8. Antwort vom Data-Port einlesen
+        let data: u8;
+        unsafe {
+            data = self.data_port.inb();
+        }
+
+        // 9. Falls kein ACK vorliegt (= 0xFA) -1 zurückgeben, sonst 0
+        if data != KBD_REPLY_ACK {
+            println!("no ACK!!!");
+            return;
+        }
+        return;
 
         /*****************************************************************************
          * Funkion:         set_repeat_rate                                          *
@@ -307,14 +391,14 @@ impl Keyboard {
          *                  Bits 4-3 = B; Bits 2-0 = D;                              *
          *****************************************************************************/
     }
-    
+
     /// Enable/Disable the LEDs on the keyboard.
     /// Multiple LEDs can be set at the same time as a bit mask.
     /// 1 = Caps Lock, 2 = Num Lock, 4 = Scroll Lock
     pub fn set_led(&mut self, led: u8, on: bool) {
 
         /* Hier muss Code eingefuegt werden. */
-        
+
         /*****************************************************************************
          * Funktion:        set_led                                                  *
          *---------------------------------------------------------------------------*

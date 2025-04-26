@@ -8,8 +8,8 @@
    ║ Author: Michael Schoetter, Univ. Duesseldorf, 6.2.2024                  ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
+use crate::kernel::cpu;
 use spin::Mutex;
-use crate::kernel::cpu as cpu;
 
 /// Global CGA instance, used for screen output in the whole kernel.
 /// Usage: let mut cga = cga::CGA.lock();
@@ -19,22 +19,22 @@ pub static CGA: Mutex<CGA> = Mutex::new(CGA::new());
 /// All 16 CGA colors.
 #[repr(u8)] // store each enum variant as an u8
 pub enum Color {
-    Black      = 0,
-    Blue       = 1,
-    Green      = 2,
-    Cyan       = 3,
-    Red        = 4,
-    Pink       = 5,
-    Brown      = 6,
-    LightGray  = 7,
-    DarkGray   = 8,
-    LightBlue  = 9,
+    Black = 0,
+    Blue = 1,
+    Green = 2,
+    Cyan = 3,
+    Red = 4,
+    Pink = 5,
+    Brown = 6,
+    LightGray = 7,
+    DarkGray = 8,
+    LightBlue = 9,
     LightGreen = 10,
-    LightCyan  = 11,
-    LightRed   = 12,
-    LightPink  = 13,
-    Yellow     = 14,
-    White      = 15,
+    LightCyan = 11,
+    LightRed = 12,
+    LightPink = 13,
+    Yellow = 14,
+    White = 15,
 }
 
 pub const CGA_STD_ATTR: u8 = (Color::Black as u8) << 4 | (Color::Green as u8);
@@ -44,13 +44,13 @@ const CGA_ROWS: usize = 25;
 const CGA_COLUMNS: usize = 80;
 
 const CGA_INDEX_PORT: u16 = 0x3d4; // select register
-const CGA_DATA_PORT: u16 = 0x3d5;  // read/write register
-const CGA_HIGH_BYTE_CMD: u8 = 14;  // cursor high byte
-const CGA_LOW_BYTE_CMD: u8 = 15;   // cursor high byte
+const CGA_DATA_PORT: u16 = 0x3d5; // read/write register
+const CGA_HIGH_BYTE_CMD: u8 = 14; // cursor high byte
+const CGA_LOW_BYTE_CMD: u8 = 15; // cursor high byte
 
 pub struct CGA {
     index_port: cpu::IoPort,
-    data_port: cpu::IoPort
+    data_port: cpu::IoPort,
 }
 
 impl CGA {
@@ -58,13 +58,22 @@ impl CGA {
     const fn new() -> CGA {
         CGA {
             index_port: cpu::IoPort::new(CGA_INDEX_PORT),
-            data_port: cpu::IoPort::new(CGA_DATA_PORT)
+            data_port: cpu::IoPort::new(CGA_DATA_PORT),
         }
     }
 
     /// Clear CGA screen and set cursor position to (0, 0).
     pub fn clear(&mut self) {
-        /* Hier muss Code eingefuegt werden */
+        for y in 0..CGA_ROWS {
+            for x in 0..CGA_COLUMNS {
+                let pos = (y * CGA_COLUMNS + x) * 2;
+                unsafe {
+                    CGA_BASE_ADDR.offset(pos as isize).write(b' ');
+                    CGA_BASE_ADDR.offset((pos + 1) as isize).write(CGA_STD_ATTR);
+                }
+            }
+        }
+        self.setpos(0, 0);
     }
 
     /// Display the `character` at the given position `x`,`y` with attribute `attrib`.
@@ -88,32 +97,91 @@ impl CGA {
 
     /// Return cursor position `x`,`y`
     pub fn getpos(&mut self) -> (usize, usize) {
-        /* Hier muss Code eingefuegt werden */
-
-        (0, 0) // Platzhalter, entfernen und durch sinnvollen Rueckgabewert ersetzen 
+        let high_byte: u8;
+        let low_byte: u8;
+        unsafe {
+            self.index_port.outb(CGA_HIGH_BYTE_CMD);
+            high_byte = self.data_port.inb();
+            self.index_port.outb(CGA_LOW_BYTE_CMD);
+            low_byte = self.data_port.inb();
+        }
+        let pos = (high_byte as u16) << 8 | (low_byte as u16);
+        let y = (pos as usize) / CGA_COLUMNS;
+        let x = (pos as usize) - (y * 80);
+        (x, y)
     }
 
-    /// Set cursor position `x`,`y` 
+    /// Set cursor position `x`,`y`
     pub fn setpos(&mut self, x: usize, y: usize) {
-        /* Hier muss Code eingefuegt werden */
+        let pos = y * CGA_COLUMNS + x;
+        let pos_low = (pos % 256) as u8;
+        let pos_high = (pos >> 8) as u8;
+        unsafe {
+            self.index_port.outb(CGA_HIGH_BYTE_CMD);
+            self.data_port.outb(pos_high);
+            self.index_port.outb(CGA_LOW_BYTE_CMD);
+            self.data_port.outb(pos_low);
+        }
     }
 
     /// Print byte `b` at actual position cursor position `x`,`y`
     pub fn print_byte(&mut self, b: u8) {
-        /* Hier muss Code eingefuegt werden */
+        let (x, y) = self.getpos();
+        let color = self.attribute(Color::Black, Color::Green, false);
+        if b != b'\n' {
+            self.show(x, y, b as char, color);
+        }
+        // handle '\n' and x/y above screen height/width
+        if x + 1 >= CGA_COLUMNS || b == b'\n' {
+            self.setpos(0, y + 1);
+            if y + 1 >= CGA_ROWS {
+                self.scrollup();
+            }
+        } else {
+            self.setpos(x + 1, y);
+        }
+    }
+
+    /// Deletes the last printed Byte
+    pub fn del(&mut self) {
+        let (x, y) = self.getpos();
+        if x > 0 {
+            self.setpos(x - 1, y);
+            self.print_byte(b' ');
+            self.setpos(x - 1, y);
+        }
     }
 
     /// Scroll text lines by one to the top.
     pub fn scrollup(&mut self) {
-        /* Hier muss Code eingefuegt werden */
+        // copy row k+1 to row k
+        for y in 0..CGA_ROWS - 1 {
+            for x in 0..CGA_COLUMNS {
+                let pos = (y * CGA_COLUMNS + x) * 2;
+                let pos_next_row = ((y + 1) * CGA_COLUMNS + x) * 2;
+                unsafe {
+                    let next_char = CGA_BASE_ADDR.offset(pos_next_row as isize).read();
+                    let next_attib = CGA_BASE_ADDR.offset((pos_next_row + 1) as isize).read();
+                    CGA_BASE_ADDR.offset(pos as isize).write(next_char);
+                    CGA_BASE_ADDR.offset((pos + 1) as isize).write(next_attib);
+                }
+            }
+        }
+        // clear last row
+        for x in 0..CGA_COLUMNS {
+            let pos = ((CGA_ROWS - 1) * CGA_COLUMNS + x) * 2;
+            unsafe {
+                CGA_BASE_ADDR.offset(pos as isize).write(b' ');
+                CGA_BASE_ADDR.offset((pos + 1) as isize).write(CGA_STD_ATTR);
+            }
+        }
+        // set cursor to same position as before
+        let (x, y) = self.getpos();
+        self.setpos(x, y - 1);
     }
 
     /// Helper function returning an attribute byte for the given parameters `bg`, `fg`, and `blink`
-    /// Note: Blinking characters do not work in QEMU, but work on real hardware.
-    ///       Support for blinking characters is optional and can be removed, if you want.
     pub fn attribute(&mut self, bg: Color, fg: Color, blink: bool) -> u8 {
-        /* Hier muss Code eingefuegt werden */
-
-        0 // Platzhalter, entfernen und durch sinnvollen Rueckgabewert ersetzen 
+        (blink as u8) << 7 | (bg as u8) << 4 | (fg as u8)
     }
 }
