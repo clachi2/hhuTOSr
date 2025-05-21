@@ -36,6 +36,7 @@ use kernel::allocator;
 use kernel::cpu;
 
 use crate::devices::cga_print::print;
+use crate::kernel::interrupts::pic::Irq;
 use crate::kernel::interrupts::{idt, intdispatcher, pic};
 use user::aufgabe1::keyboard_demo;
 use user::aufgabe1::text_demo;
