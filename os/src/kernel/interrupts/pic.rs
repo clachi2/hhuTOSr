@@ -1,20 +1,20 @@
 /* ╔═════════════════════════════════════════════════════════════════════════╗
-   ║ Module: pic                                                             ║
-   ╟─────────────────────────────────────────────────────────────────────────╢
-   ║ Descr.: The PIC allows to enable or disable IRQs. This determines       ║
-   ║         whether an interruption from a device is forwarded to the cpu   ║
-   ║         at all. Even then, activation of the interrupt routine which is ║
-   ║         registered in the IDT only occurs if the processor is ready to  ║
-   ║         respond to interrupts. This depends on the Interrupt Enable IE  ║
-   ║         bit in the RFLAGS register. This can be controlled using        ║
-   ║         function in the 'cpu.rs' module.                                ║
-   ╟─────────────────────────────────────────────────────────────────────────╢
-   ║ Author: Michael Schoetter, Univ. Duesseldorf, 7.3.2022                  ║
-   ╚═════════════════════════════════════════════════════════════════════════╝
- */
-use spin::Mutex;
-use crate::kernel::cpu as cpu;
+  ║ Module: pic                                                             ║
+  ╟─────────────────────────────────────────────────────────────────────────╢
+  ║ Descr.: The PIC allows to enable or disable IRQs. This determines       ║
+  ║         whether an interruption from a device is forwarded to the cpu   ║
+  ║         at all. Even then, activation of the interrupt routine which is ║
+  ║         registered in the IDT only occurs if the processor is ready to  ║
+  ║         respond to interrupts. This depends on the Interrupt Enable IE  ║
+  ║         bit in the RFLAGS register. This can be controlled using        ║
+  ║         function in the 'cpu.rs' module.                                ║
+  ╟─────────────────────────────────────────────────────────────────────────╢
+  ║ Author: Michael Schoetter, Univ. Duesseldorf, 7.3.2022                  ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+*/
+use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
+use spin::Mutex;
 
 /// Global PIC instance, used for interrupt handling in the whole kernel.
 pub static PIC: Mutex<Pic> = Mutex::new(Pic::new());
@@ -55,7 +55,7 @@ pub struct Pic {
     command1: IoPort,
     command2: IoPort,
     data1: IoPort,
-    data2: IoPort
+    data2: IoPort,
 }
 
 impl Pic {
@@ -65,7 +65,7 @@ impl Pic {
             command1: IoPort::new(PIC_COMMAND_1),
             command2: IoPort::new(PIC_COMMAND_2),
             data1: IoPort::new(PIC_DATA_1),
-            data2: IoPort::new(PIC_DATA_2)
+            data2: IoPort::new(PIC_DATA_2),
         }
     }
 
@@ -106,22 +106,33 @@ impl Pic {
     }
 
     /// Enable an IRQ to be forwarded to the processor by the PIC.
-    pub fn allow (&mut self, irq: Irq) {
-
+    pub fn allow(&mut self, irq: Irq) {
         /* Hier muss Code eingefuegt werden */
-
+        // Enable the IRQ in the PIC
+        let irq = irq as u8;
+        if irq <= 7 {
+            unsafe {
+                let mask = self.data1.inb();
+                self.data1.outb(mask & !(1 << irq));
+            }
+        } else {
+            unsafe {
+                let mask = self.data2.inb();
+                self.data2.outb(mask & !(1 << (irq - 8)));
+            }
+        }
     }
 
     /// Disable an IRQ to be forwarded to the processor by the PIC.
-    pub fn forbid (&mut self, irq: Irq) {
+    pub fn forbid(&mut self, irq: Irq) {
 
         /* Hier muss Code eingefuegt werden */
-
     }
 
     /// Get the state (enabled/disabled) of an IRQ in the PIC.
-    pub fn status (&mut self, irq: Irq) -> bool {
-
+    pub fn status(&mut self, irq: Irq) -> bool {
         /* Hier muss Code eingefuegt werden */
 
+        false
+    }
 }

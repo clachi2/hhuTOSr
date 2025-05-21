@@ -7,13 +7,14 @@
    ║ Author: Michael Schoetter, Univ. Duesseldorf, 6.2.2024                  ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-
 use crate::devices::cga_print::print;
 use crate::devices::key;
 use crate::devices::key::Key;
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
-use spin::Mutex;
+use crate::kernel::interrupts::isr::ISR;
+use alloc::boxed::Box;
+use spin::{Mutex, Once};
 
 /// Global thread-safe access to keyboard.
 /// Usage: let mut keyboard = keyboard::KEYBOARD.lock();
@@ -396,7 +397,6 @@ impl Keyboard {
     /// Multiple LEDs can be set at the same time as a bit mask.
     /// 1 = Caps Lock, 2 = Num Lock, 4 = Scroll Lock
     pub fn set_led(&mut self, led: u8, on: bool) {
-
         /* Hier muss Code eingefuegt werden. */
 
         /*****************************************************************************
@@ -411,12 +411,14 @@ impl Keyboard {
     }
 }
 
-
+use crate::kernel::interrupts::intdispatcher::{INT_VECTORS, InterruptVector};
+use crate::kernel::interrupts::pic;
+use crate::kernel::interrupts::pic::Irq;
 use nolock::queues::mpmc;
 use nolock::queues::mpmc::bounded::scq::{Receiver, Sender};
 
 /// Global keyboard instance.
-pub static KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard::new());
+// pub static KEYBOARD: Mutex<Keyboard> = Mutex::new(Keyboard::new());
 
 /// Global key buffer.
 /// Each key is pushed to this queue by the interrupt handler
@@ -428,20 +430,20 @@ static KEYBOARD_BUFFER: Once<KeyQueue> = Once::new();
 /// Usage: let key_buffer = keyboard::get_key_buffer();
 ///        let key = key_buffer.get_last_key();
 pub fn get_key_buffer() -> &'static KeyQueue {
-    KEYBOARD_BUFFER.call_once(|| {
-        KeyQueue::new()
-    })
+    KEYBOARD_BUFFER.call_once(|| KeyQueue::new())
 }
 
 /* ╔═════════════════════════════════════════════════════════════════════════╗
-   ║ Interrupt service routine implementation.                               ║
-   ╚═════════════════════════════════════════════════════════════════════════╝ */
+║ Interrupt service routine implementation.                               ║
+╚═════════════════════════════════════════════════════════════════════════╝ */
 
 /// Register the keyboard interrupt handler.
 pub fn plugin() {
-
     /* Hier muss Code eingefuegt werden */
-
+    INT_VECTORS
+        .lock()
+        .register(InterruptVector::Keyboard, Box::new(KeyboardISR {}));
+    pic::PIC.lock().allow(Irq::Keyboard);
 }
 
 /// The keyboard interrupt service routine.
@@ -449,15 +451,17 @@ pub struct KeyboardISR {}
 
 impl ISR for KeyboardISR {
     fn trigger(&self) {
-
-        /* Hier muss Code eingefuegt werden */
-
+        // println!("keyboard interrupt triggered!");
+        let key = KEYBOARD.lock().key_hit_irq();
+        if key.is_some() {
+            get_key_buffer().push_key(key.unwrap());
+        }
     }
 }
 
 /* ╔═════════════════════════════════════════════════════════════════════════╗
-   ║ Key buffer implementation.                                              ║
-   ╚═════════════════════════════════════════════════════════════════════════╝ */
+║ Key buffer implementation.                                              ║
+╚═════════════════════════════════════════════════════════════════════════╝ */
 
 /// Represents a first in first out queue for keyboard keys.
 /// It uses a multi-producer multi-consumer queue from the nolock crate,
@@ -466,7 +470,7 @@ pub struct KeyQueue {
     /// Keys can be popped from the queue via the receiver.
     receiver: Receiver<Key>,
     /// Keys can be pushed to the queue via the sender.
-    sender: Sender<Key>
+    sender: Sender<Key>,
 }
 
 impl KeyQueue {
@@ -500,7 +504,7 @@ impl KeyQueue {
 
         match self.receiver.try_dequeue() {
             Ok(key) => Some(key),
-            Err(_) => None
+            Err(_) => None,
         }
     }
 
@@ -522,16 +526,28 @@ impl KeyQueue {
 }
 
 /* ╔═════════════════════════════════════════════════════════════════════════╗
-   ║ Implementation of the keyboard driver itself.                           ║
-   ╚═════════════════════════════════════════════════════════════════════════╝ */
+║ Implementation of the keyboard driver itself.                           ║
+╚═════════════════════════════════════════════════════════════════════════╝ */
 
 impl Keyboard {
     /// Poll a byte from the keyboard controller.
     /// Decode and return the key if it is complete.
     fn key_hit_irq(&mut self) -> Option<Key> {
-
         /* Hier muss Code eingefuegt werden */
 
+        let mut status: u8 = 0;
+        unsafe {
+            status = self.control_port.inb();
+        }
+        if (status & KBD_OUTB) == 0 || (status & KBD_AUXB) != 0 {
+            return None;
+        }
+        unsafe {
+            self.code = self.data_port.inb();
+        }
+        if self.key_decoded() {
+            return Some(self.gather);
+        }
         None
     }
 }

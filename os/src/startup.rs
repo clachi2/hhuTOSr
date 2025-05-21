@@ -1,3 +1,4 @@
+#![feature(abi_x86_interrupt)]
 /* ╔═════════════════════════════════════════════════════════════════════════╗
    ║ Module: startup                                                         ║
    ╟─────────────────────────────────────────────────────────────────────────╢
@@ -20,34 +21,46 @@ extern crate spin; // we need a mutex in devices::cga_print
 // insert other modules
 #[macro_use] // import macros, too
 mod devices;
+mod consts;
 mod kernel;
 mod user;
-mod consts;
 
+use core::arch::asm;
 use core::panic::PanicInfo;
 
 use devices::cga; // shortcut for cga
 use devices::cga_print; // used to import code needed by println!
 use devices::keyboard; // shortcut for keyboard
 
-use kernel::cpu;
 use kernel::allocator;
+use kernel::cpu;
 
-use user::aufgabe1::text_demo;
+use crate::devices::cga_print::print;
+use crate::kernel::interrupts::{idt, intdispatcher, pic};
 use user::aufgabe1::keyboard_demo;
+use user::aufgabe1::text_demo;
 use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
-
+use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 
 fn aufgabe1() {
+    cga::CGA.lock().clear();
     text_demo::run();
     println!("");
     keyboard_demo::run();
+    loop {}
 }
 
 fn aufgabe2() {
-   heap_demo::run();
-   sound_demo::run();
+    allocator::init();
+    heap_demo::run();
+    sound_demo::run();
+    loop {}
+}
+
+fn aufgabe3() {
+    aufgabe3_keyboard_demo::run();
+    loop {}
 }
 
 #[unsafe(no_mangle)]
@@ -55,18 +68,32 @@ pub extern "C" fn startup() {
     kprintln!("Welcome to hhuTOS!");
 
     // ---- Aufgabe 1 ----
-    // cga::CGA.lock().clear();
     // aufgabe1();
     // --------------------
 
-
     // ---- Aufgabe 2 ----
-    // Speicherverwaltung initialisieren
-    allocator::init();
-    aufgabe2();
+    // aufgabe2();
     // --------------------
-    
-    loop{}
+
+    println!("Init allocator...");
+    allocator::init();
+    println!("load idt...");
+    idt::get_idt().load();
+    println!("init idt...");
+    intdispatcher::INT_VECTORS.lock().init();
+    println!("init pic...");
+    pic::PIC.lock().init();
+    println!("init keyboard...");
+    keyboard::plugin();
+    println!("enable interrupts...");
+    cpu::enable_int();
+    println!("start keyboard demo...");
+
+    // ---- Aufgabe 3 ----
+    aufgabe3();
+    // --------------------
+
+    loop {}
 }
 
 #[panic_handler]
@@ -75,4 +102,3 @@ fn panic(info: &PanicInfo) -> ! {
     //	kprintln!("{:?}", Backtrace::new());
     loop {}
 }
-

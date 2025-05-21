@@ -1,24 +1,24 @@
 /* ╔═════════════════════════════════════════════════════════════════════════╗
-   ║ Module: intdispatcher                                                   ║
-   ╟─────────────────────────────────────────────────────────────────────────╢
-   ║ Descr.: Interrupt dispatching in Rust. The main function is 'int_disp'  ║
-   ║         which is called for any interrupt and calls a registered ISR    ║
-   ║         of device driver, e.g. the keyboard.                            ║
-   ║                                                                         ║
-   ║         'int_disp' is called from 'interrupts.asm' where all the x86    ║
-   ║         low-level stuff is handled.                                     ║
-   ╟─────────────────────────────────────────────────────────────────────────╢
-   ║ Author: Michael Schoetter, Univ. Duesseldorf, 7.3.2022                  ║
-   ╚═════════════════════════════════════════════════════════════════════════╝
- */
+  ║ Module: intdispatcher                                                   ║
+  ╟─────────────────────────────────────────────────────────────────────────╢
+  ║ Descr.: Interrupt dispatching in Rust. The main function is 'int_disp'  ║
+  ║         which is called for any interrupt and calls a registered ISR    ║
+  ║         of device driver, e.g. the keyboard.                            ║
+  ║                                                                         ║
+  ║         'int_disp' is called from 'interrupts.asm' where all the x86    ║
+  ║         low-level stuff is handled.                                     ║
+  ╟─────────────────────────────────────────────────────────────────────────╢
+  ║ Author: Michael Schoetter, Univ. Duesseldorf, 7.3.2022                  ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+*/
 extern crate spin;
 
 use crate::kernel::cpu;
 use crate::kernel::interrupts::InterruptStackFrame;
-use alloc::{boxed::Box, vec, vec::Vec};
-use spin::Mutex;
 use crate::kernel::interrupts::idt::IDT_SIZE;
 use crate::kernel::interrupts::isr::ISR;
+use alloc::{boxed::Box, vec, vec::Vec};
+use spin::Mutex;
 
 /// Enumeration of all standardized interrupt vectors.
 pub enum InterruptVector {
@@ -73,9 +73,10 @@ pub static INT_VECTORS: Mutex<IntVectors> = Mutex::new(IntVectors::new());
 /// The main interrupt dispatcher.
 /// Every interrupt is routed here, if not specified otherwise in the IDT.
 pub fn int_disp(vector: u8, stack_frame: InterruptStackFrame, error_code: Option<u64>) {
-
-    /* Hier muss Code eingefuegt werden */
-
+    // kprintln!("interrupt {}: {:?}", vector, stack_frame);
+    if INT_VECTORS.lock().report(vector) == false {
+        panic!("No ISR registered for interrupt {}", vector);
+    }
 }
 
 /// The Interrupt vector map. Each ISR is registered in this map.
@@ -111,14 +112,26 @@ impl IntVectors {
     /// Interrupts get disabled while registering the ISR to avoid race conditions with int_disp().
     pub fn register(&mut self, vector: InterruptVector, isr: Box<dyn ISR>) {
 
-        /* Hier muss Code eingefuegt werden */
+        cpu::disable_int();
 
+        self.map[vector as usize] = Some(isr);
+
+        cpu::enable_int();
     }
 
     /// Check if an ISR is registered for `vector`. If so, call it.
     pub fn report(&mut self, vector: u8) -> bool {
 
-        /* Hier muss Code eingefuegt werden */
+        if vector as usize >= self.map.len() {
+            return false;
+        }
+
+        if self.map[vector as usize].is_some() {
+            self.map[vector as usize].as_mut().unwrap().trigger();
+            return true;
+        }
+
+        false
 
     }
 }
