@@ -8,7 +8,7 @@ pub fn run() {
     let mut keyboard = keyboard::KEYBOARD.lock();
     keyboard.set_repeat_rate(30, 3);
     loop {
-        let mut key = keyboard.key_hit();
+        let key = keyboard.key_hit();
         if key.valid() {
             if key.get_scancode() == 28 {
                 cga::CGA.lock().print_byte(b'\n');

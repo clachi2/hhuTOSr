@@ -8,7 +8,7 @@
  *   ║         https://os.phil-opp.com/allocator-designs/                      ║
  *   ╚═════════════════════════════════════════════════════════════════════════╝
  */
-use super::{align_up, Locked};
+use super::{Locked, align_up};
 use alloc::alloc::{GlobalAlloc, Layout};
 use core::ptr;
 
@@ -37,16 +37,30 @@ impl BumpAllocator {
 
     /// Dump free memory for debugging purposes.
     pub fn dump_free_list(&mut self) {
-
         /* Hier muss Code eingefuegt werden */
 
+        println!(
+            "Heap start: {:#x}, end: {:#x}, next: {:#x}, allocations: {}",
+            self.heap_start, self.heap_end, self.next, self.allocations
+        );
     }
 
     /// Allocate memory of the given size and alignment.
     pub unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
-
         /* Hier muss Code eingefuegt werden */
 
+        let start = align_up(self.next, layout.align());
+        let end = start + layout.size();
+
+        if end > self.heap_end {
+            println!("BumpAllocator: out of memory");
+            return ptr::null_mut();
+        }
+
+        self.next = end;
+        self.allocations += 1;
+
+        start as *mut u8
     }
 
     /// Deallocate memory (not supported by bump allocator).
@@ -56,9 +70,7 @@ impl BumpAllocator {
 // Trait required by the Rust runtime for heap allocations
 unsafe impl GlobalAlloc for Locked<BumpAllocator> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        unsafe {
-            self.lock().alloc(layout)
-        }
+        unsafe { self.lock().alloc(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
