@@ -9,9 +9,9 @@
 */
 #![allow(dead_code)]
 
-use spin::Mutex;
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
+use spin::Mutex;
 
 pub static SPEAKER: Mutex<Speaker> = Mutex::new(Speaker::new());
 
@@ -83,42 +83,67 @@ impl Speaker {
 
     /// Play a specific frequency for a given amount of time (milliseconds).
     pub fn play(&mut self, frequency: usize, duration: usize) {
-
-        /* Hier muss Code eingefuegt werden */
-
+        let divisor = (1193180 / frequency) as u16;
+        unsafe {
+            self.pit_ctrl_port.outb(0xB6);
+            self.pit_data2_port.outb((divisor & 0xFF) as u8);
+            self.pit_data2_port.outb((divisor >> 8) as u8);
+        }
+        self.on();
+        self.delay(duration);
+        self.off();
     }
 
     /// Turn on the speaker.
     /// The played tone is dependent on counter 2 of the PIT.
     pub fn on(&mut self) {
-
-        /* Hier muss Code eingefuegt werden */
-
+        unsafe {
+            let read = self.ppi_port.inb();
+            self.ppi_port.outb(read | 0x03);
+        }
     }
 
     /// Turn off the speaker.
     pub fn off(&mut self) {
-
-        /* Hier muss Code eingefuegt werden */
-
+        unsafe {
+            let read = self.ppi_port.inb();
+            self.ppi_port.outb(read & 0xFC);
+        }
     }
 
     /// Return the current value of the PIT counter (16-bit).
     /// Used by `delay()` to check if the counter has reached 0 or has been reloaded.
     fn read_counter(&mut self) -> u16 {
-
-        /* Hier muss Code eingefuegt werden */
-
+        let low: u8;
+        let high: u8;
+        unsafe {
+            self.pit_ctrl_port.outb(0x00);
+            low = self.pit_data0_port.inb();
+            high = self.pit_data0_port.inb();
+        }
+        (high as u16) << 8 | (low as u16)
     }
-    
+
     /// Wait for a given amount of time in milliseconds using counter 0 of the PIT.
     /// Mode 2 (rate generator) with a reload value of 1193 (0x04a9) is used.
     /// This means that the counter will count down from 1193 to 0 and then reload itself.
     /// Counting from 1193 to 0 takes 1ms.
     fn delay(&mut self, duration: usize) {
-
-        /* Hier muss Code eingefuegt werden */
-
+        // set the PIT to mode 2 (rate generator) with a reload value of 1193
+        unsafe {
+            self.pit_ctrl_port.outb(0x34);
+            self.pit_data0_port.outb((1193 & 0xFF) as u8);
+            self.pit_data0_port.outb((1193 >> 8) as u8);
+        }
+        let mut counter = duration;
+        let mut last_read = self.read_counter();
+        while counter > 0 {
+            let new_read = self.read_counter();
+            if new_read > last_read {
+                counter -= 1;
+            }
+            last_read = new_read;
+        }
     }
 }
 
@@ -126,7 +151,7 @@ impl Speaker {
 /// Kévin Rapaille, August 2013, https://gist.github.com/XeeX/6220067
 pub fn tetris() {
     let mut speaker = SPEAKER.lock();
-    
+
     speaker.play(658, 125);
     speaker.play(1320, 500);
     speaker.play(990, 250);
@@ -249,7 +274,7 @@ pub fn tetris() {
 /// https://www.kirrus.co.uk/2010/09/linux-beep-music
 pub fn aerodynamic() {
     let mut speaker = SPEAKER.lock();
-    
+
     speaker.play(587, 122);
     speaker.play(370, 122);
     speaker.play(493, 122);
