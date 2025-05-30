@@ -60,7 +60,7 @@ impl<T> LinkedQueue<T> {
                 self.head = old_head.next;
                 Some(old_head.data)
             }
-            None => None // The queue is empty, so return None.
+            None => None, // The queue is empty, so return None.
         }
     }
 
@@ -68,10 +68,28 @@ impl<T> LinkedQueue<T> {
     /// Returns true if an element was removed, false otherwise.
     /// `f` is a function that takes a reference to the data and returns true if it matches.
     pub fn remove<F>(&mut self, f: F) -> bool
-    where F: Fn(&T) -> bool
+    where
+        F: Fn(&T) -> bool,
     {
+        if let Some(ref mut head_node) = self.head {
+            if f(&head_node.data) {
+                self.head = self.head.take().and_then(|node| node.next);
+                return true;
+            }
+        }
 
-        /* Hier muss Code eingefuegt werden */
+        let mut current = self.head.as_mut();
+
+        while let Some(node) = current {
+            if let Some(ref mut next_node) = node.next {
+                if f(&next_node.data) {
+                    node.next = next_node.next.take();
+                    return true;
+                }
+            }
+
+            current = node.next.as_mut();
+        }
 
         false
     }

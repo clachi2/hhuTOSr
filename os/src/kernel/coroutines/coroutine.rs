@@ -1,19 +1,19 @@
 /* ╔═════════════════════════════════════════════════════════════════════════╗
    ║ Module: coroutine                                                       ║
    ╟─────────────────────────────────────────────────────────────────────────╢
-   ║ Descr.: Functions for creating, starting, switching and ending          ║ 
+   ║ Descr.: Functions for creating, starting, switching and ending          ║
    ║         coroutines.                                                     ║
    ╟─────────────────────────────────────────────────────────────────────────╢
    ║ Autor:  Michael Schoettner, 15.05.2023                                  ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
+use crate::consts::{self, STACK_SIZE};
+use crate::kernel::cpu;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core::arch::naked_asm;
 use core::ptr;
 use core::sync::atomic::{AtomicUsize, Ordering};
-use crate::consts::{self, STACK_SIZE};
-use crate::kernel::cpu;
 
 /// Atomic counter for coroutine ids.
 static COROUTINE_ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
@@ -24,25 +24,79 @@ fn next_id() -> usize {
 }
 
 /// Low-level routine for starting a coroutine.
-#[unsafe(naked)]
+#[naked]
 unsafe extern "C" fn coroutine_start(stack_ptr: usize) {
-    naked_asm!(
-
-       /* Hier muss Code eingefuegt werden */
-
-    )
+    unsafe {
+        naked_asm!(
+            "mov rsp, rdi", // move stack to subroutine stack pointer
+            // restore all registers
+            "popf",
+            "pop rbp",
+            "pop rdi",
+            "pop rsi",
+            "pop rdx",
+            "pop rcx",
+            "pop rbx",
+            "pop rax",
+            "pop r15",
+            "pop r14",
+            "pop r13",
+            "pop r12",
+            "pop r11",
+            "pop r10",
+            "pop r9",
+            "pop r8",
+            "ret" // jump to kickoff
+        )
+    }
 }
 
 /// Low-level routine for switching to the next coroutine.
 /// `current_stack_ptr` is a pointer to `stack_ptr` of the current coroutine (where the rsp is saved).
 /// `next_stack` is the value of `stack_ptr` of the next coroutine (the new rsp value).
-#[unsafe(naked)]
+#[naked]
 unsafe extern "C" fn coroutine_switch(current_stack_ptr: *mut usize, next_stack: usize) {
-    naked_asm!(
-
-       /* Hier muss Code eingefuegt werden */
-
-    )
+    unsafe {
+        naked_asm!(
+            // safe all registers
+            "push r8",
+            "push r9",
+            "push r10",
+            "push r11",
+            "push r12",
+            "push r13",
+            "push r14",
+            "push r15",
+            "push rax",
+            "push rbx",
+            "push rcx",
+            "push rdx",
+            "push rsi",
+            "push rdi",
+            "push rbp",
+            "pushf",
+            "mov [rdi], rsp", // save rsp to coroutine stack pointer
+            "mov rsp, rsi",   // move stack to next subroutine stack pointer
+            // restore all registers
+            "popf",
+            "pop rbp",
+            "pop rdi",
+            "pop rsi",
+            "pop rdx",
+            "pop rcx",
+            "pop rbx",
+            "pop rax",
+            "pop r15",
+            "pop r14",
+            "pop r13",
+            "pop r12",
+            "pop r11",
+            "pop r10",
+            "pop r9",
+            "pop r8",
+            "ret" // jump to kickoff
+        )
+    }
 }
 
 /// Represents a coroutine in the system.
@@ -65,13 +119,17 @@ impl Coroutine {
         for _ in 0..stack.capacity() {
             stack.push(0);
         }
-        
+
         let stack_ptr = ptr::from_ref(&stack[stack.capacity() - 1]) as usize;
-        
-        let mut coroutine = Box::new(
-            Coroutine { id: next_id(), stack, stack_ptr, entry, next: ptr::null_mut() }
-        );
-        
+
+        let mut coroutine = Box::new(Coroutine {
+            id: next_id(),
+            stack,
+            stack_ptr,
+            entry,
+            next: ptr::null_mut(),
+        });
+
         coroutine.prepare_stack();
         coroutine
     }
@@ -80,18 +138,18 @@ impl Coroutine {
     /// Once started, coroutines cannot be exited.
     /// May only be called once.
     pub fn start(&mut self) {
-        
-        /* Hier muss Code eingefuegt werden */
-        
+        unsafe {
+            coroutine_start(self.stack_ptr);
+        }
     }
 
     /// Switch to the next coroutine.
     pub fn switch(&mut self) {
-
-        /* Hier muss Code eingefuegt werden */
-
+        unsafe {
+            coroutine_switch(&mut self.stack_ptr as *mut usize, (*self.next).stack_ptr);
+        }
     }
-    
+
     /// Get the id of the coroutine.
     pub fn get_id(&self) -> usize {
         self.id
@@ -99,9 +157,7 @@ impl Coroutine {
 
     /// Set the next pointer of the coroutine.
     pub fn set_next(&mut self, next: &mut Coroutine) {
-
-        /* Hier muss Code eingefuegt werden */
-
+        self.next = next as *mut Coroutine;
     }
 
     /// Prepare the stack of a newly created coroutine in a way that it can be used
@@ -112,7 +168,7 @@ impl Coroutine {
         let kickoff = Coroutine::kickoff as u64;
         let coroutine = ptr::from_mut(self) as u64;
         let length = self.stack.len();
-        
+
         self.stack[length - 1] = 0x131155; // Dummy return address
         self.stack[length - 2] = kickoff; // Address of 'kickoff'
         self.stack[length - 3] = 0; // r8
@@ -131,7 +187,7 @@ impl Coroutine {
         self.stack[length - 16] = coroutine; // rdi -> First parameter for 'kickoff'
         self.stack[length - 17] = 0; // rbp
         self.stack[length - 18] = 0x2; // rflags (IE = 0); interrupts disabled
-        
+
         self.stack_ptr = self.stack_ptr - (consts::STACK_ENTRY_SIZE * 17);
     }
 

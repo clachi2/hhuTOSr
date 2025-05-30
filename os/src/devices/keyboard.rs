@@ -533,9 +533,8 @@ impl Keyboard {
     /// Poll a byte from the keyboard controller.
     /// Decode and return the key if it is complete.
     fn key_hit_irq(&mut self) -> Option<Key> {
-        /* Hier muss Code eingefuegt werden */
 
-        let mut status: u8 = 0;
+        let status: u8;
         unsafe {
             status = self.control_port.inb();
         }

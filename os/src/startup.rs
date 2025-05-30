@@ -1,4 +1,5 @@
 #![feature(abi_x86_interrupt)]
+#![feature(naked_functions)]
 /* ╔═════════════════════════════════════════════════════════════════════════╗
    ║ Module: startup                                                         ║
    ╟─────────────────────────────────────────────────────────────────────────╢
@@ -24,6 +25,7 @@ mod devices;
 mod consts;
 mod kernel;
 mod user;
+mod library;
 
 use core::arch::asm;
 use core::panic::PanicInfo;
@@ -43,6 +45,8 @@ use user::aufgabe1::text_demo;
 use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
+use user::aufgabe4::coroutine_demo;
+use crate::user::aufgabe4::thread_demo;
 
 fn aufgabe1() {
     cga::CGA.lock().clear();
@@ -61,6 +65,12 @@ fn aufgabe2() {
 
 fn aufgabe3() {
     aufgabe3_keyboard_demo::run();
+    loop {}
+}
+
+fn aufgabe4() {
+    // coroutine_demo::run();
+    thread_demo::run();
     loop {}
 }
 
@@ -88,10 +98,13 @@ pub extern "C" fn startup() {
     keyboard::plugin();
     println!("enable interrupts...");
     cpu::enable_int();
-    println!("start keyboard demo...");
 
     // ---- Aufgabe 3 ----
-    aufgabe3();
+    // aufgabe3();
+    // --------------------
+
+    // ---- Aufgabe 3 ----
+    aufgabe4();
     // --------------------
 
     loop {}
