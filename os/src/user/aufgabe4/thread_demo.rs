@@ -12,21 +12,22 @@ fn thread_entry() {
         cga::CGA.lock().setpos(10, 10 + id);
         print!("Thread [{}]: {}\n", id, count);
 
-        match id {
-            1 => {
-                if count == 10000 {
-                    get_scheduler().kill(3);
-                }
-                if count == 29999 {
-                    get_scheduler().exit();
-                }
+        if id == 1{
+            if count == 10000 {
+                get_scheduler().kill(3);
+                cga::CGA.lock().setpos(0, 1);
+                print!("Thread [3] killed by Thread [{}] after 10000 iterations.\n", id);
             }
-            2 => {
-                if count == 19999 {
-                    get_scheduler().exit();
-                }
+            if count == 20000 {
+                get_scheduler().kill(2);
+                cga::CGA.lock().setpos(0, 2);
+                print!("Thread [2] killed by Thread [{}] after 20000 iterations.\n", id);
             }
-            _ => {}
+            if count == 29999 {
+                cga::CGA.lock().setpos(0, 3);
+                print!("Thread [{}] exiting after 29999 iterations.\n", id);
+                get_scheduler().exit();
+            }
         }
 
         count += 1;
