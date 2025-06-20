@@ -12,6 +12,7 @@
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
 use spin::Mutex;
+use crate::devices::pit;
 
 pub static SPEAKER: Mutex<Speaker> = Mutex::new(Speaker::new());
 
@@ -85,12 +86,13 @@ impl Speaker {
     pub fn play(&mut self, frequency: usize, duration: usize) {
         let divisor = (1193180 / frequency) as u16;
         unsafe {
-            self.pit_ctrl_port.outb(0xB6);
+            self.pit_ctrl_port.outb(0xB6); // mode 3, counter 2
             self.pit_data2_port.outb((divisor & 0xFF) as u8);
             self.pit_data2_port.outb((divisor >> 8) as u8);
         }
         self.on();
-        self.delay(duration);
+        // self.delay(duration);
+        pit::wait(duration);
         self.off();
     }
 
@@ -131,7 +133,7 @@ impl Speaker {
     fn delay(&mut self, duration: usize) {
         // set the PIT to mode 2 (rate generator) with a reload value of 1193
         unsafe {
-            self.pit_ctrl_port.outb(0x34);
+            self.pit_ctrl_port.outb(0x34); // mode 2, counter 0
             self.pit_data0_port.outb((1193 & 0xFF) as u8);
             self.pit_data0_port.outb((1193 >> 8) as u8);
         }
@@ -174,7 +176,8 @@ pub fn tetris() {
     speaker.play(1056, 500);
     speaker.play(880, 500);
     speaker.play(880, 500);
-    speaker.delay(250);
+    // speaker.delay(250);
+    pit::wait(250);
     speaker.play(1188, 500);
     speaker.play(1408, 250);
     speaker.play(1760, 500);
@@ -193,7 +196,8 @@ pub fn tetris() {
     speaker.play(1056, 500);
     speaker.play(880, 500);
     speaker.play(880, 500);
-    speaker.delay(500);
+    // speaker.delay(500);
+    pit::wait(500);
     speaker.play(1320, 500);
     speaker.play(990, 250);
     speaker.play(1056, 250);
@@ -215,7 +219,8 @@ pub fn tetris() {
     speaker.play(1056, 500);
     speaker.play(880, 500);
     speaker.play(880, 500);
-    speaker.delay(250);
+    // speaker.delay(250);
+    pit::wait(250);
     speaker.play(1188, 500);
     speaker.play(1408, 250);
     speaker.play(1760, 500);
@@ -234,7 +239,8 @@ pub fn tetris() {
     speaker.play(1056, 500);
     speaker.play(880, 500);
     speaker.play(880, 500);
-    speaker.delay(500);
+    // speaker.delay(500);
+    pit::wait(500);
     speaker.play(660, 1000);
     speaker.play(528, 1000);
     speaker.play(594, 1000);

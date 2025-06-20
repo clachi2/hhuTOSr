@@ -1,9 +1,7 @@
 use crate::devices::pcspk;
-use crate::devices::pcspk::{tetris, aerodynamic, SPEAKER};
+use crate::devices::pcspk::{tetris, aerodynamic};
 
 pub fn run() {
-
-    aerodynamic();
-
     tetris();
+    aerodynamic();
 }

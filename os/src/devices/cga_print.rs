@@ -15,37 +15,37 @@ use crate::devices::cga::CGA;
 
 /// The global writer that can used as an interface from other modules.
 /// It is threadsafe by using 'Mutex'.
-pub static WRITER: Mutex<Writer> = Mutex::new(Writer::new());
+// pub static WRITER: Mutex<Writer> = Mutex::new(Writer::new());
 
 /// Writer for writing formatted strings to the CGA screen
-pub struct Writer {}
-
-impl Writer {
-    /// Create a new Writer object.
-    pub const fn new() -> Writer {
-        Writer {}
-    }
-}
-
-/// Implementation of the 'core::fmt::Write' trait for our Writer.
-/// Required to output formatted strings.
-/// Requires only one function 'write_str'.
-impl Write for Writer {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        let mut cga = cga::CGA.lock();
-        for byte in s.bytes() {
-            match byte {
-                // printable ASCII byte or newline
-                0x20..=0x7e | b'\n' => cga.print_byte(byte),
-
-                // not part of printable ASCII range
-                _ => cga.print_byte(0xfe),
-            }
-        }
-
-        Ok(())
-    }
-}
+// pub struct Writer {}
+//
+// impl Writer {
+//     /// Create a new Writer object.
+//     pub const fn new() -> Writer {
+//         Writer {}
+//     }
+// }
+//
+// /// Implementation of the 'core::fmt::Write' trait for our Writer.
+// /// Required to output formatted strings.
+// /// Requires only one function 'write_str'.
+// impl Write for Writer {
+//     fn write_str(&mut self, s: &str) -> fmt::Result {
+//         let mut cga = cga::CGA.lock();
+//         for byte in s.bytes() {
+//             match byte {
+//                 // printable ASCII byte or newline
+//                 0x20..=0x7e | b'\n' => cga.print_byte(byte),
+//
+//                 // not part of printable ASCII range
+//                 _ => cga.print_byte(0xfe),
+//             }
+//         }
+//
+//         Ok(())
+//     }
+// }
 
 
 // Provide macros like in the 'io' module of Rust

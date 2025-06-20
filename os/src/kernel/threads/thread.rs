@@ -152,6 +152,7 @@ impl Thread {
     /// Switch from the `current` thread to the `next` thread.
     /// This function is called by the scheduler to switch between threads.
     pub unsafe fn switch(current: *mut Thread, next: *mut Thread) {
+        kprintln!("Switching from thread {} to thread {}", (*current).id, (*next).id);
         unsafe {
             thread_switch(&mut (*current).stack_ptr as *mut usize, (*next).stack_ptr);
         }

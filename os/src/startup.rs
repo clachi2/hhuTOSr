@@ -46,7 +46,9 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
+use crate::devices::pit;
 use crate::user::aufgabe4::thread_demo;
+use crate::user::aufgabe5::thread_demo as aufgabe5_thread_demo;
 
 fn aufgabe1() {
     cga::CGA.lock().clear();
@@ -74,6 +76,11 @@ fn aufgabe4() {
     loop {}
 }
 
+fn aufgabe5() {
+    aufgabe5_thread_demo::run();
+    loop {}
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn startup() {
     kprintln!("Welcome to hhuTOS!");
@@ -98,13 +105,19 @@ pub extern "C" fn startup() {
     keyboard::plugin();
     println!("enable interrupts...");
     cpu::enable_int();
+    println!("enable PIT interrupts...");
+    pit::plugin();
 
     // ---- Aufgabe 3 ----
     // aufgabe3();
     // --------------------
 
-    // ---- Aufgabe 3 ----
-    aufgabe4();
+    // ---- Aufgabe 4 ----
+    // aufgabe4();
+    // --------------------
+
+    // ---- Aufgabe 5 ----
+    aufgabe5();
     // --------------------
 
     loop {}

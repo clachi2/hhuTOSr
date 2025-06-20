@@ -112,11 +112,11 @@ impl IntVectors {
     /// Interrupts get disabled while registering the ISR to avoid race conditions with int_disp().
     pub fn register(&mut self, vector: InterruptVector, isr: Box<dyn ISR>) {
 
-        cpu::disable_int();
+        let old = cpu::disable_int_nested();
 
         self.map[vector as usize] = Some(isr);
 
-        cpu::enable_int();
+        cpu::enable_int_nested(old);
     }
 
     /// Check if an ISR is registered for `vector`. If so, call it.

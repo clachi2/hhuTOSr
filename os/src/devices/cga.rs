@@ -8,6 +8,7 @@
    ║ Author: Michael Schoetter, Univ. Duesseldorf, 6.2.2024                  ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
+use core::fmt::Write;
 use crate::kernel::cpu;
 use spin::Mutex;
 

@@ -7,6 +7,7 @@
    ║ Autor:  Michael Schoettner, 15.05.2023                                  ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
+use crate::kernel::allocator::is_locked;
 use crate::kernel::threads::idle_thread::idle_thread;
 use crate::kernel::threads::thread;
 use crate::kernel::threads::thread::Thread;
@@ -45,6 +46,7 @@ pub unsafe extern "C" fn unlock_scheduler() {
 struct SchedulerState {
     active_thread: Option<Box<Thread>>,
     ready_queue: LinkedQueue<Box<Thread>>,
+    initialized: bool,
 }
 
 /// Represents the scheduler.
@@ -60,6 +62,7 @@ impl Scheduler {
         let state = SchedulerState {
             active_thread: Some(Thread::new(idle_thread)),
             ready_queue: LinkedQueue::new(),
+            initialized: false,
         };
 
         Scheduler {
@@ -78,6 +81,7 @@ impl Scheduler {
     /// This function must only be called once.
     pub fn schedule(&self) {
         let mut state = self.state.lock();
+        state.initialized = true;
 
         // The active thread is never None, since we must at least have the idle thread.
         state.active_thread.as_mut().unwrap().start();
@@ -116,17 +120,24 @@ impl Scheduler {
 
     /// Yield the CPU and switch to the next thread in the ready queue.
     pub fn yield_cpu(&self) {
-        let mut state = self.state.lock();
-        let mut current = state.active_thread.take().unwrap();
-        let current_ptr = current.as_mut() as *mut Thread;
-        if let Some(dequeued) = state.ready_queue.dequeue() {
-            state.ready_queue.enqueue(current);
-            state.active_thread = Some(dequeued);
-            unsafe {
-                Thread::switch(current_ptr, state.active_thread.as_mut().unwrap().as_mut());
+        if let Some(mut state) = self.state.try_lock() {
+            if !state.initialized {
+                return; // Do not yield if the scheduler is not initialized
             }
-        } else {
-            state.active_thread = Some(current);
+            if is_locked() {
+                return; // Do not yield if the allocator is locked
+            }
+            let mut current = state.active_thread.take().unwrap();
+            let current_ptr = current.as_mut() as *mut Thread;
+            if let Some(dequeued) = state.ready_queue.dequeue() {
+                state.ready_queue.enqueue(current);
+                state.active_thread = Some(dequeued);
+                unsafe {
+                    Thread::switch(current_ptr, state.active_thread.as_mut().unwrap().as_mut());
+                }
+            } else {
+                state.active_thread = Some(current);
+            }
         }
     }
 
