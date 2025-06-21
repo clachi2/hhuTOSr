@@ -14,7 +14,7 @@
 */
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
-use spin::Mutex;
+use crate::library::mutex::Mutex;
 
 /// Global PIC instance, used for interrupt handling in the whole kernel.
 pub static PIC: Mutex<Pic> = Mutex::new(Pic::new());

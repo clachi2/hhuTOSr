@@ -83,7 +83,6 @@ fn aufgabe5() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn startup() {
-    kprintln!("Welcome to hhuTOS!");
 
     // ---- Aufgabe 1 ----
     // aufgabe1();
@@ -93,20 +92,30 @@ pub extern "C" fn startup() {
     // aufgabe2();
     // --------------------
 
-    println!("Init allocator...");
     allocator::init();
-    println!("load idt...");
+    println!("initializing allocator... done");
+    kprintln!("initializing allocator... done");
     idt::get_idt().load();
-    println!("init idt...");
+    println!("initializing IDT... done");
+    kprintln!("initializing IDT... done");
     intdispatcher::INT_VECTORS.lock().init();
-    println!("init pic...");
+    println!("initializing interrupt dispatcher... done");
+    kprintln!("initializing interrupt dispatcher... done");
     pic::PIC.lock().init();
-    println!("init keyboard...");
+    println!("initializing PIC... done");
+    kprintln!("initializing PIC... done");
     keyboard::plugin();
-    println!("enable interrupts...");
+    println!("initializing keyboard... done");
+    kprintln!("initializing keyboard... done");
     cpu::enable_int();
-    println!("enable PIT interrupts...");
+    println!("enabling interrupts... done");
+    kprintln!("enabling interrupts... done");
     pit::plugin();
+    println!("initializing PIT... done");
+    kprintln!("initializing PIT... done");
+
+
+    kprintln!("Welcome to hhuTOS!");
 
     // ---- Aufgabe 3 ----
     // aufgabe3();

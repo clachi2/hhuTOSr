@@ -11,7 +11,8 @@
 
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
-use spin::Mutex;
+use crate::library::mutex::Mutex;
+// use spin::Mutex;
 use crate::devices::pit;
 
 pub static SPEAKER: Mutex<Speaker> = Mutex::new(Speaker::new());

@@ -17,9 +17,11 @@
    ║         https://os.phil-opp.com/allocator-designs/                      ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-use alloc::alloc::Layout;
 use crate::kernel::allocator::bump::BumpAllocator;
 use crate::kernel::allocator::list::LinkedListAllocator;
+use alloc::alloc::Layout;
+// use spin::{Mutex, MutexGuard};
+use crate::library::mutex::{Mutex, MutexGuard};
 
 pub mod bump;
 pub mod list;
@@ -30,7 +32,8 @@ const HEAP_SIZE: usize = 1024 * 1024 * 10; // 1 MiB heap size
 // Define the allocator (which implements the 'GlobalAlloc' trait)
 #[global_allocator]
 // static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new(HEAP_START, HEAP_SIZE));
-static ALLOCATOR: Locked<LinkedListAllocator> = Locked::new(LinkedListAllocator::new(HEAP_START, HEAP_SIZE));
+pub static ALLOCATOR: Locked<LinkedListAllocator> =
+    Locked::new(LinkedListAllocator::new(HEAP_START, HEAP_SIZE));
 
 /// Initialize the heap allocator.
 pub fn init() {
@@ -41,16 +44,12 @@ pub fn init() {
 
 /// Allocates memory from the heap. Compiler generates code calling this function.
 pub fn alloc(layout: Layout) -> *mut u8 {
-    unsafe {
-        ALLOCATOR.lock().alloc(layout)
-    }
+    unsafe { ALLOCATOR.lock().alloc(layout) }
 }
 
 /// Deallocates memory from the heap. Compiler generates code calling this function.
 pub fn dealloc(ptr: *mut u8, layout: Layout) {
-    unsafe {
-        ALLOCATOR.lock().dealloc(ptr, layout)
-    }
+    unsafe { ALLOCATOR.lock().dealloc(ptr, layout) }
 }
 
 /// Dump heap free list. Must be called by own program.
@@ -62,18 +61,22 @@ pub fn dump_free_list() {
 /// A wrapper around `spin::Mutex` to allow for trait implementations.
 /// Required for implementing `GlobalAlloc` in `bump.rs` and `list.rs`.
 pub struct Locked<A> {
-    inner: spin::Mutex<A>,
+    inner: Mutex<A>,
 }
 
 impl<A> Locked<A> {
     pub const fn new(inner: A) -> Self {
         Locked {
-            inner: spin::Mutex::new(inner),
+            inner: Mutex::new(inner),
         }
     }
 
-    pub fn lock(&self) -> spin::MutexGuard<A> {
+    pub fn lock(&self) -> MutexGuard<A> {
         self.inner.lock()
+    }
+
+    pub fn is_locked(&self) -> bool {
+        self.inner.is_locked()
     }
 }
 

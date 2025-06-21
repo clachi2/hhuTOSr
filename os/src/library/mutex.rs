@@ -1,14 +1,14 @@
+use crate::kernel::cpu;
+use crate::kernel::threads::scheduler::{get_scheduler, SCHEDULER_ACTIVE};
+use crate::kernel::threads::thread::Thread;
+use crate::library::queue::LinkedQueue;
+use crate::library::spinlock::{Spinlock, SpinlockGuard};
 use alloc::boxed::Box;
 use core::arch::asm;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
 use core::ptr;
 use core::sync::atomic::AtomicBool;
-use crate::kernel::cpu;
-use crate::kernel::threads::scheduler::get_scheduler;
-use crate::kernel::threads::thread::Thread;
-use crate::library::queue::LinkedQueue;
-use crate::library::spinlock::Spinlock;
 
 /// A more sophisticated lock implementation than `Spinlock`, that blocks waiting threads
 /// when the lock is already held. This improves performance, as no time is wasted by threads
@@ -20,7 +20,7 @@ pub struct Mutex<T> {
     /// See `Spinlock` for more details on why we use `UnsafeCell`.
     data: UnsafeCell<T>,
     /// A queue of threads waiting for the lock to be released.
-    wait_queue: Spinlock<LinkedQueue<Box<Thread>>>
+    wait_queue: Spinlock<LinkedQueue<Box<Thread>>>,
 }
 
 unsafe impl<T> Sync for Mutex<T> where T: Send {}
@@ -31,16 +31,17 @@ impl<T> Mutex<T> {
         Mutex {
             lock: AtomicBool::new(false),
             data: UnsafeCell::new(data),
-            wait_queue: Spinlock::new(LinkedQueue::new())
+            wait_queue: Spinlock::new(LinkedQueue::new()),
         }
     }
-    
+
     /// Try to acquire the lock once without blocking.
     pub fn try_lock(&self) -> Option<MutexGuard<T>> {
-
-        /* Hier muss Code eingefuegt werden */
-
-        None
+        let temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+        if temp {
+            return None;
+        }
+        Some(MutexGuard { lock: self })
     }
 
     /// Acquire the lock, blocking if necessary until it is available.
@@ -49,18 +50,40 @@ impl<T> Mutex<T> {
     /// Once the lock is available, the next thread in the `wait_queue` will be woken up
     /// so it can try to acquire the lock again.
     pub fn lock(&self) -> MutexGuard<T> {
+        if !SCHEDULER_ACTIVE.load(core::sync::atomic::Ordering::Relaxed) {
+            let mut temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+            while temp {
+                unsafe {
+                    asm!("pause");
+                }
+                temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+            }
+            return MutexGuard { lock: self };
+        }
 
-        /* Hier muss Code eingefuegt werden */
+        let mut temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+
+        while temp {
+            let (mut thread, int) = get_scheduler().prepare_block();
+            let thread_ptr = thread.as_mut() as *mut Thread;
+            {
+                let mut wait_queue = self.wait_queue.lock();
+                wait_queue.enqueue(thread);
+            }
+
+            unsafe {
+                get_scheduler().switch_from_blocked_thread(thread_ptr, int);
+            }
+
+            temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+        }
 
         MutexGuard { lock: self }
     }
-    
+
     /// Check if the lock is currently held.
     pub fn is_locked(&self) -> bool {
-
-        /* Hier muss Code eingefuegt werden */
-        
-        false
+        self.lock.load(core::sync::atomic::Ordering::Acquire)
     }
 
     /// Check if the wait queue is currently locked.
@@ -71,17 +94,33 @@ impl<T> Mutex<T> {
     /// Unlock the mutex, allowing other threads to acquire it.
     /// If there are threads waiting for the lock, the next thread in the wait queue is woken up.
     pub fn unlock(&self) {
+        if !self.is_locked() {
+            panic!("Mutex is not locked");
+        }
 
-        /* Hier muss Code eingefuegt werden */
+        self.lock
+            .store(false, core::sync::atomic::Ordering::Release);
 
+        if !SCHEDULER_ACTIVE.load(core::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+        {
+            let mut wait_queue = self.wait_queue.lock();
+            if let Some(thread) = wait_queue.dequeue() {
+                get_scheduler().ready(thread);
+            }
+        }
     }
-    
+
     /// Forcefully unlock the mutex without waking up any waiting threads.
     /// This should only be used in exceptional cases.
     pub unsafe fn force_unlock(&self) {
+        if !self.is_locked() {
+            panic!("Mutex is not locked");
+        }
 
-        /* Hier muss Code eingefuegt werden */
-
+        self.lock
+            .store(false, core::sync::atomic::Ordering::Release);
     }
 }
 
@@ -89,24 +128,20 @@ impl<T> Mutex<T> {
 /// It implements `Deref` and `DerefMut` to allow transparent access to the data.
 /// It also implements `Drop` to automatically unlock the mutex when it goes out of scope.
 pub struct MutexGuard<'a, T> {
-    lock: &'a Mutex<T>
+    lock: &'a Mutex<T>,
 }
 
 impl<'a, T> Deref for MutexGuard<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe {
-            self.lock.data.get().as_ref().unwrap()
-        }
+        unsafe { self.lock.data.get().as_ref().unwrap() }
     }
 }
 
 impl<'a, T> DerefMut for MutexGuard<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe {
-            self.lock.data.get().as_mut().unwrap()
-        }
+        unsafe { self.lock.data.get().as_mut().unwrap() }
     }
 }
 

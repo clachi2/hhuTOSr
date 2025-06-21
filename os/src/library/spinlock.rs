@@ -29,7 +29,11 @@ impl<T> Spinlock<T> {
     /// Try to acquire the lock once without blocking.
     pub fn try_lock(&self) -> Option<SpinlockGuard<T>> {
 
-        /* Hier muss Code eingefuegt werden */
+        let temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+
+        if temp {
+            return None;
+        }
 
         Some(SpinlockGuard { lock: self })
     }
@@ -37,7 +41,15 @@ impl<T> Spinlock<T> {
     /// Spin until the lock is acquired, then return a guard that allows access to the data.
     pub fn lock(&self) -> SpinlockGuard<T> {
 
-        /* Hier muss Code eingefuegt werden */
+        let mut temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+
+        while temp {
+            unsafe {
+                asm!("pause");
+            }
+
+            temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
+        }
 
         SpinlockGuard { lock: self }
     }
@@ -45,22 +57,29 @@ impl<T> Spinlock<T> {
     /// Check if the lock is currently held.
     pub fn is_locked(&self) -> bool {
 
-        /* Hier muss Code eingefuegt werden */
+        self.lock.load(core::sync::atomic::Ordering::Acquire)
 
-        false
     }
 
     /// Unlock the spinlock, allowing other threads to acquire it.
     pub fn unlock(&self) {
 
-        /* Hier muss Code eingefuegt werden */
+        if !self.is_locked() {
+            panic!("Spinlock is not locked");
+        }
+
+        self.lock.store(false, core::sync::atomic::Ordering::Release);
 
     }
 
     /// Forcefully unlock the spinlock. This should only be used in exceptional cases.
     pub unsafe fn force_unlock(&self) {
 
-        /* Hier muss Code eingefuegt werden */
+        if !self.is_locked() {
+            panic!("Spinlock is not locked");
+        }
+
+        self.lock.store(false, core::sync::atomic::Ordering::Release);
 
     }
 }

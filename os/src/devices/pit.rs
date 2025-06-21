@@ -19,15 +19,7 @@ use alloc::boxed::Box;
 use core::arch::asm;
 use core::sync::atomic::AtomicUsize;
 use spin::Once;
-
-// A5.1: Programmable Interval Timer (PIT)
-// Der PIT wird ab sofort verwendet, um eine Systemzeit sowie ein erzwungenes Umschalten zwischen Threads zu realisieren. Die Systemzeit wird in der Variable SYSTEM_TIME (in pit.rs) gespeichert und diese soll bei jedem Interrupt für den PIT inkrementiert werden. Verwenden Sie hierfür im PIT den Zähler 0 und Modus 3 und laden Sie den Zähler mit einem passenden Wert, sodass der PIT jede Millisekunde ein Interrupt ausgelöst. Jeder Interrupt verursacht also eine Inkrementierung und entspricht einem Tick (1ms). Somit zeigt SYSTEM_TIME an, wie viele Ticks seit dem Beginn der Zeiterfassung vergangen sind.
-//
-// Im Interrupt-Handler des PITs soll die Systemzeit in Form eines rotierenden Zeichens (engl. spinner) an einer festen Stelle dargestellt werden. Verwenden Sie hierfür beispielsweise die rechte obere Ecke und folgende Zeichen: | / - \ (vorgegeben in SPINNER_CHARS), wobei das Zeichen in einem festen Intervall (z.B. alle 250ms) gewechselt werden soll. Hierzu muss in trigger() die CGA Instanz gelockt werden. Sollte das Lock gerade nicht verfügbar sein, würde dies zu einem Deadlock führen, da wir nie aus dem Interrupt Handler zurückkehren würden. Verwenden Sie try_lock() um dies zu vermeiden. Sollte das Lock nicht verfügbar sein, wird das Zeichen einfach nicht ausgegeben. Früher oder später wird das Lock mal frei sein und das Zeichen aktualisiert werden.
-//
-// Die Funktion plugin() soll den den PIT mit Hilfe von TIMER.call_once(|| { ... }) initialisieren, das Interrupt Intervall setzen und ihn in intdispatcher.rs anmelden. Außerdem sollen die Timer Interrupts im PIC zugelassen werden. Rufen Sie plugin() in startup.rs auf, um den Timer zu starten.
-//
-// In folgenden Dateien muss Code implementiert werden: devices/pit.rs und startup.rs.
+use crate::kernel::allocator::ALLOCATOR;
 
 // Ports
 const PORT_CTRL: u16 = 0x43;
@@ -71,7 +63,7 @@ pub fn plugin() {
         timer.set_interrupt_interval(1);
         INT_VECTORS.lock().register(
             InterruptVector::Pit,
-            Box::new(TimerISR { interval_ms: 250}),
+            Box::new(TimerISR { interval_ms: 250 }),
         );
         pic::PIC.lock().allow(Irq::Timer);
         timer
@@ -88,21 +80,24 @@ struct TimerISR {
 
 impl ISR for TimerISR {
     fn trigger(&self) {
-
         let current_time = SYSTEM_TIME.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 
         if current_time % self.interval_ms == 0 {
-            if let Some(mut cga) = CGA.try_lock() {
-                let spinner_index = (current_time / self.interval_ms) % SPINNER_CHARS.len();
-                cga.setpos(79, 0);
-                cga.print_byte(SPINNER_CHARS[spinner_index] as u8);
+            if !get_scheduler().is_locked()
+                && !ALLOCATOR.is_locked()
+                && !cga::CGA.is_queue_locked()
+            {
+                if let Some(mut cga) = CGA.try_lock() {
+                    let spinner_index = (current_time / self.interval_ms) % SPINNER_CHARS.len();
+                    cga.setpos(79, 0);
+                    cga.print_byte(SPINNER_CHARS[spinner_index] as u8);
+                }
             }
         }
 
         // Switch to the next thread in the scheduler.
         unsafe { INT_VECTORS.force_unlock() }
         get_scheduler().yield_cpu();
-
     }
 }
 

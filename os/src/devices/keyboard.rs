@@ -14,7 +14,9 @@ use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
 use crate::kernel::interrupts::isr::ISR;
 use alloc::boxed::Box;
-use spin::{Mutex, Once};
+use spin::{Once};
+use crate::library::mutex::Mutex;
+
 
 /// Global thread-safe access to keyboard.
 /// Usage: let mut keyboard = keyboard::KEYBOARD.lock();

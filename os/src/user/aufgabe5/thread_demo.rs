@@ -8,10 +8,11 @@ use nolock::queues::mpsc::jiffy::queue;
 fn thread_entry() {
     let id = get_scheduler().get_active_tid();
     let mut count = 0;
-    // kprintln!("Thread [{}] started.", id);
 
+    let time_start = pit::get_system_time();
     loop {
-        if let Some(mut cga) = cga::CGA.try_lock() {
+        {
+            let mut cga = cga::CGA.lock();
             cga.setpos(10, 10 + id);
             print_cga!(&mut cga, "Thread [{}]: {}\n", id, count);
         }
@@ -20,6 +21,28 @@ fn thread_entry() {
 
         if count % 30 == 0 {
             get_scheduler().yield_cpu();
+        }
+        if count > 50000 {
+            kprintln!(
+                "Thread [{}] finished {} iterations after {} ms.",
+                id,
+                count,
+                pit::get_system_time() - time_start
+            );
+            break;
+
+            // with own mutex:
+            // Thread [1] finished 50001 iterations after 8143 ms.
+            // Thread [3] finished 50001 iterations after 8195 ms.
+            // Thread [2] finished 50001 iterations after 8213 ms.
+            // with spinlock:
+            // Thread [1] finished 50001 iterations after 21730 ms.
+            // Thread [2] finished 50001 iterations after 21740 ms.
+            // Thread [3] finished 50001 iterations after 21744 ms.
+            // with spin mutex:
+            // Thread [1] finished 50001 iterations after 19752 ms.
+            // Thread [2] finished 50001 iterations after 19756 ms.
+            // Thread [3] finished 50001 iterations after 19759 ms.
         }
     }
 }
@@ -41,7 +64,6 @@ pub fn run() {
     scheduler.ready(Box::new(*thread1));
     scheduler.ready(Box::new(*thread2));
     scheduler.ready(Box::new(*thread3));
-    scheduler.ready(Box::new(*thread_music));
-
+    // scheduler.ready(Box::new(*thread_music));
     scheduler.schedule();
 }

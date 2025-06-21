@@ -10,7 +10,9 @@
 */
 use core::fmt::Write;
 use crate::kernel::cpu;
-use spin::Mutex;
+// use spin::Mutex;
+// use crate::library::spinlock::Spinlock as Mutex;
+use crate::library::mutex::Mutex;
 
 /// Global CGA instance, used for screen output in the whole kernel.
 /// Usage: let mut cga = cga::CGA.lock();
