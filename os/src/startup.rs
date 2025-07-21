@@ -46,9 +46,14 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
+use crate::devices::lfb::init_lfb;
+use crate::devices::pci::{get_pci_bus, Command};
 use crate::devices::pit;
+use crate::kernel::cpu::IoPort;
+use crate::kernel::multiboot::{FramebufferType, MultibootInfo};
 use crate::user::aufgabe4::thread_demo;
 use crate::user::aufgabe5::thread_demo as aufgabe5_thread_demo;
+use crate::user::aufgabe7::graphic_demo;
 
 fn aufgabe1() {
     cga::CGA.lock().clear();

@@ -9,4 +9,7 @@ pub mod key;
 pub mod serial;
 pub mod pcspk;
 pub mod pit;
+pub mod lfb;
+pub mod pci;
+pub mod font_8x8;
 
