@@ -27,7 +27,7 @@ pub mod bump;
 pub mod list;
 
 const HEAP_START: usize = 0x500000;
-const HEAP_SIZE: usize = 1024 * 1024 * 10; // 1 MiB heap size
+const HEAP_SIZE: usize = 1024 * 1024 * 10 * 10;
 
 // Define the allocator (which implements the 'GlobalAlloc' trait)
 #[global_allocator]
@@ -56,6 +56,11 @@ pub fn dealloc(ptr: *mut u8, layout: Layout) {
 /// Can be used for debugging the heap allocator.
 pub fn dump_free_list() {
     ALLOCATOR.lock().dump_free_list();
+}
+
+/// Dump heap free list in a shell-friendly format.
+pub fn dump_free_list_shell() {
+    ALLOCATOR.lock().dump_free_list_shell();
 }
 
 /// A wrapper around `spin::Mutex` to allow for trait implementations.

@@ -1,9 +1,10 @@
 use crate::kernel::cpu;
-use crate::kernel::threads::scheduler::{get_scheduler, SCHEDULER_ACTIVE};
+use crate::kernel::threads::scheduler::{SCHEDULER_ACTIVE, get_scheduler};
 use crate::kernel::threads::thread::Thread;
 use crate::library::queue::LinkedQueue;
 use crate::library::spinlock::{Spinlock, SpinlockGuard};
 use alloc::boxed::Box;
+use alloc::string::ToString;
 use core::arch::asm;
 use core::cell::UnsafeCell;
 use core::ops::{Deref, DerefMut};
@@ -107,7 +108,7 @@ impl<T> Mutex<T> {
         {
             let mut wait_queue = self.wait_queue.lock();
             if let Some(thread) = wait_queue.dequeue() {
-                get_scheduler().ready(thread);
+                get_scheduler().ready_after_block(thread);
             }
         }
     }

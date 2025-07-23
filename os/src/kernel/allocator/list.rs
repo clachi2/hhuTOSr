@@ -12,7 +12,10 @@ use crate::devices::cga_print::print;
 use crate::kernel::allocator::bump::BumpAllocator;
 use crate::kernel::cpu;
 use alloc::alloc::{GlobalAlloc, Layout};
+use alloc::format;
+use alloc::string::String;
 use core::{mem, ptr};
+use crate::shell_println;
 
 /// Header of a free block in the list allocator.
 struct ListNode {
@@ -130,6 +133,24 @@ impl LinkedListAllocator {
         );
         while let Some(ref region) = current.next {
             println!(
+                "    Block start={:#x}, Block end={:#x}, Block size={}",
+                region.start_addr(),
+                region.end_addr(),
+                region.size
+            );
+            current = region;
+        }
+    }
+
+    pub fn dump_free_list_shell(&self) {
+        let mut current = &self.head;
+        shell_println!(
+            "Heap start: {:#x}, end: {:#x}",
+            self.heap_start,
+            self.heap_end
+        );
+        while let Some(ref region) = current.next {
+            shell_println!(
                 "    Block start={:#x}, Block end={:#x}, Block size={}",
                 region.start_addr(),
                 region.end_addr(),

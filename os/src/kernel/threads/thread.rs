@@ -13,6 +13,7 @@ use crate::kernel::cpu;
 use crate::kernel::threads::scheduler;
 use crate::kernel::threads::scheduler::get_scheduler;
 use alloc::boxed::Box;
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::arch::naked_asm;
 use core::fmt::Display;
@@ -112,12 +113,14 @@ pub struct Thread {
     id: usize,
     stack: Vec<u64>,  // Memory for the stack
     stack_ptr: usize, // Pointer on the stack to the saved context
-    entry: fn(),
+    entry: fn(&[String]),
+    args: Vec<String>,
+    name: String,
 }
 
 impl Thread {
     /// Create a new thread with the given entry function.
-    pub fn new(entry: fn()) -> Box<Thread> {
+    pub fn new(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
         // Allocate memory for the stack and initialize it to zero
         let mut stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
         for _ in 0..stack.capacity() {
@@ -133,6 +136,8 @@ impl Thread {
             stack,
             stack_ptr,
             entry,
+            args,
+            name,
         });
 
         // Prepare the stack for the thread so it can be started via `thread_start()`
@@ -161,6 +166,11 @@ impl Thread {
     /// Get the ID of the thread.
     pub fn get_id(&self) -> usize {
         self.id
+    }
+
+    /// Get the name of the thread.
+    pub fn get_name(&self) -> String{
+        self.name.clone()
     }
 
     /// Prepare the stack of a newly created thread in a way that it can be used
@@ -196,15 +206,14 @@ impl Thread {
 
     /// Called indirectly by using the prepared stack in 'thread_start' and 'thread_switch'.
     fn kickoff(&self) {
-        cpu::enable_int(); // interrupts are disabled during thread start
-        ((*self).entry)();
-
+        cpu::enable_int();
+        (self.entry)(&self.args);
         get_scheduler().exit();
     }
 }
 
 impl Display for Thread {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "T{}", self.id)
+        write!(f, "({}, \'{}\')", self.id, self.name)
     }
 }

@@ -5,6 +5,7 @@ pub mod kprint;
 pub mod cga_print;
 pub mod cga;
 pub mod keyboard;
+pub mod mouse;
 pub mod key;
 pub mod serial;
 pub mod pcspk;

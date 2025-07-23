@@ -9,7 +9,7 @@
 */
 use crate::devices::cga_print::print;
 use crate::devices::key;
-use crate::devices::key::Key;
+pub(crate) use crate::devices::key::Key;
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
 use crate::kernel::interrupts::isr::ISR;
@@ -204,6 +204,12 @@ impl Keyboard {
 
     /// Calculate the ASCII code from the scancode and modifier bits.
     fn get_ascii_code(&mut self) {
+        if self.code >= NORMAL_TAB.len() as u8 {
+            // Invalid scancode, return without setting ASCII or scancode
+            self.gather.set_ascii(0);
+            self.gather.set_scancode(0);
+            return;
+        }
         // Special case Scancode 53: This code is sent by both the minus key
         // of the normal keyboard area and the division key of the numeric
         // keypad. In order to get the correct code in both cases, a conversion

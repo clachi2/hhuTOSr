@@ -152,6 +152,18 @@ pub fn halt () {
     }
 }
 
+/// reboot the system
+#[inline]
+pub fn reboot() {
+    disable_int();
+    let mut port = IoPort::new(0x64);
+    unsafe {
+        port.outb(0xFE);
+    }
+    // Halt the CPU (this should never return)
+    halt();
+}
+
 /// Get the current value of RFLAGS
 #[inline]
 pub fn get_flags() -> u64 {

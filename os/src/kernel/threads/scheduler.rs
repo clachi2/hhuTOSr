@@ -14,6 +14,8 @@ use crate::kernel::threads::thread;
 use crate::kernel::threads::thread::Thread;
 use crate::library::queue::LinkedQueue;
 use alloc::boxed::Box;
+use alloc::format;
+use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::fmt::Display;
 use core::sync::atomic::{AtomicBool, AtomicUsize};
@@ -49,6 +51,7 @@ pub unsafe extern "C" fn unlock_scheduler() {
 struct SchedulerState {
     active_thread: Option<Box<Thread>>,
     ready_queue: LinkedQueue<Box<Thread>>,
+    alive_threads: Vec<(usize, String)>,
 }
 
 /// Represents the scheduler.
@@ -62,8 +65,9 @@ impl Scheduler {
     /// and an idle thread as the active thread.
     pub fn new() -> Self {
         let state = SchedulerState {
-            active_thread: Some(Thread::new(idle_thread)),
+            active_thread: Some(Thread::new(idle_thread, Vec::new(), String::from("idle"))),
             ready_queue: LinkedQueue::new(),
+            alive_threads: Vec::new(),
         };
 
         Scheduler {
@@ -91,7 +95,15 @@ impl Scheduler {
     /// Register a new thread in the ready queue.
     pub fn ready(&self, thread: Box<Thread>) {
         let mut state = self.state.lock();
+        state
+            .alive_threads
+            .push((thread.get_id(), thread.get_name()));
+        state.ready_queue.enqueue(thread);
+    }
 
+    /// Re-register a thread that was blocked in the ready queue.
+    pub fn ready_after_block(&self, thread: Box<Thread>) {
+        let mut state = self.state.lock();
         state.ready_queue.enqueue(thread);
     }
 
@@ -101,6 +113,11 @@ impl Scheduler {
 
         // The active thread is never None, since we must at least have the idle thread.
         let mut current = state.active_thread.take().unwrap();
+
+        state
+            .alive_threads
+            .retain(|&(id, ref name)| id != current.get_id());
+
         // The idle thread never exits, so there must be at least one thread in the queue.
         let next = state.ready_queue.dequeue().unwrap();
 
@@ -157,6 +174,9 @@ impl Scheduler {
         state
             .ready_queue
             .remove(|thread| thread.get_id() == to_kill_id);
+        state
+            .alive_threads
+            .retain(|&(id, ref name)| id != to_kill_id);
     }
 
     /// Check if the scheduler state is currently locked.
@@ -170,10 +190,10 @@ impl Scheduler {
     /// To complete the blocking operation call `switch_from_blocked_thread()`,
     /// which will enable interrupts again and resume the scheduler.
     pub fn prepare_block(&self) -> (Box<Thread>, bool) {
+        let int = cpu::disable_int_nested();
         let mut state = self.state.lock();
 
         let current = state.active_thread.take().unwrap();
-        let int = cpu::disable_int_nested();
 
         (current, int)
     }
@@ -188,7 +208,6 @@ impl Scheduler {
         let mut state = self.state.lock();
 
         if let Some(next) = state.ready_queue.dequeue() {
-
             state.active_thread = Some(next);
 
             unsafe {
@@ -197,18 +216,45 @@ impl Scheduler {
                     state.active_thread.as_mut().unwrap().as_mut(),
                 );
             }
+            cpu::enable_int_nested(interrupts_enabled);
         } else {
             unsafe {
                 state.active_thread = Some(Box::from_raw(blocked_thread));
             }
+            drop(state);
+            cpu::enable_int_nested(interrupts_enabled);
+            self.yield_cpu();
         }
-
-        cpu::enable_int_nested(interrupts_enabled);
     }
 
-    // pub fn is_initialized(&self) -> bool {
-    //     self.state.lock().initialized
-    // }
+    // active wait
+    pub fn wait_on_thread(&self, id: usize) {
+        loop {
+            if let Some(state) = self.state.try_lock() {
+                if !state.alive_threads.iter().any(|&(tid, _)| tid == id) {
+                    return;
+                }
+            }
+            get_scheduler().yield_cpu();
+        }
+    }
+
+    pub fn process_count(&self) -> usize {
+        self.state.lock().alive_threads.len()
+    }
+
+    pub fn to_string(&self) -> String {
+        let processes_string = self
+            .state
+            .lock()
+            .alive_threads
+            .iter()
+            .map(|(id, name)| format!("   {}: {}", id, name))
+            .collect::<Vec<String>>()
+            .join("\n");
+
+        format!("processes:\n{}", processes_string)
+    }
 }
 
 impl Display for Scheduler {

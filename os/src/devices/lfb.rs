@@ -1,4 +1,5 @@
 use alloc::string::ToString;
+use core::sync::atomic::AtomicBool;
 use spin::Once;
 use crate::devices::font_8x8;
 use crate::library::mutex::Mutex;
@@ -6,11 +7,18 @@ use crate::library::mutex::Mutex;
 /// Global Linear Framebuffer (LFB) instance.
 static LFB: Once<Mutex<LFB>> = Once::new();
 
+static IS_LFB_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 /// Initialize the Linear Framebuffer (LFB).
 pub fn init_lfb(addr: *mut u8, pitch: u32, width: u32, height: u32, bpp: u8) {
     LFB.call_once(|| { 
         Mutex::new(LFB::new(addr, pitch, width, height, bpp))
     });
+    IS_LFB_INITIALIZED.store(true, core::sync::atomic::Ordering::SeqCst);
+}
+
+pub fn is_lfb_initialized() -> bool {
+    IS_LFB_INITIALIZED.load(core::sync::atomic::Ordering::SeqCst)
 }
 
 /// Global access to the Linear Framebuffer (LFB).
@@ -97,6 +105,10 @@ impl LFB {
         LFB { addr, pitch, width, height }
     }
 
+    pub fn get_address(&self) -> *mut u8 {
+        self.addr
+    }
+
     /// Get the resolution of the framebuffer as (width, height).
     pub fn get_dimensions(&self) -> (u32, u32) {
         (self.width, self.height)
@@ -170,7 +182,10 @@ impl LFB {
     }
 
     /// Get the pixel data for a character from the font data.
-    fn get_char_pixels(c: char) -> &'static [u8] {
+    fn get_char_pixels(mut c: char) -> &'static [u8] {
+        if c > 255 as char {
+            c = ' ';
+        }
         let char_mem_size = (font_8x8::CHAR_WIDTH + (8 >> 1)) / 8 * font_8x8::CHAR_HEIGHT;
         let start = (char_mem_size * c as u32) as usize;
         let end = start + char_mem_size as usize;
@@ -207,6 +222,9 @@ impl LFB {
                     for bit in (0..8).rev() {
                         if ((1 << bit) & char_pixels[pixel_index]) != 0 {
                             self.draw_pixel(xpos, ypos, color);
+                        }
+                        else {
+                            self.draw_pixel(xpos, ypos, BLACK);
                         }
 
                         xpos += 1;

@@ -6,6 +6,7 @@ use crate::devices::keyboard::get_key_buffer;
 // shortcut for keyboard
 
 pub fn run() {
+     cga::CGA.lock().clear();
 
     let buffer = get_key_buffer();
     loop {

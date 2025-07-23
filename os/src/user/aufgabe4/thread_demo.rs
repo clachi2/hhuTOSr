@@ -2,15 +2,20 @@ use crate::devices::cga;
 use crate::kernel::threads::scheduler::{Scheduler, get_scheduler};
 use crate::kernel::threads::thread::Thread;
 use alloc::boxed::Box;
+use alloc::string::String;
+use alloc::vec::Vec;
 use nolock::queues::mpsc::jiffy::queue;
 
-fn thread_entry() {
+fn thread_entry(args: &[String]) {
     let id = get_scheduler().get_active_tid();
     let mut count = 0;
 
     loop {
-        cga::CGA.lock().setpos(10, 10 + id);
-        print!("Thread [{}]: {}\n", id, count);
+        {
+            let mut cga = cga::CGA.lock();
+            cga.setpos(10, 10 + id);
+            print_cga!(&mut cga, "Thread [{}]: {}\n", id, count);
+        }
 
         if id == 1{
             if count == 10000 {
@@ -41,9 +46,9 @@ pub fn run() {
     cga::CGA.lock().clear();
     print!("Thread Demo:");
 
-    let thread1 = Thread::new(thread_entry);
-    let thread2 = Thread::new(thread_entry);
-    let thread3 = Thread::new(thread_entry);
+    let thread1 = Thread::new(thread_entry, Vec::new(), String::from("Thread Demo 1"));
+    let thread2 = Thread::new(thread_entry, Vec::new(), String::from("Thread Demo 2"));
+    let thread3 = Thread::new(thread_entry, Vec::new(), String::from("Thread Demo 3"));
 
     scheduler.ready(Box::new(*thread1));
     scheduler.ready(Box::new(*thread2));
