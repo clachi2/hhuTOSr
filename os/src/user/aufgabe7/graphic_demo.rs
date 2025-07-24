@@ -30,6 +30,7 @@ pub fn draw_demo(args: &[String]) {
     let char_dimensions = get_lfb().lock().get_char_dimensions();
     let text_pos = ((dimensions.0 - MESSAGE.len() as u32 * char_dimensions.0) / 2, char_dimensions.1);
     get_lfb().lock().draw_str(text_pos.0, text_pos.1, HHU_RED, MESSAGE);
+    keyboard::get_key_buffer().clear_keys();
     keyboard::get_key_buffer().wait_for_key();
 }
 

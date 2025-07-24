@@ -48,8 +48,8 @@ struct Shell {
 
 impl Shell {
     fn new() -> Self {
-        let (screen_width, screen_height) = lfb::get_lfb().lock().get_dimensions();
-        let (char_width, char_height) = lfb::get_lfb().lock().get_char_dimensions();
+        let (screen_width, screen_height) = get_lfb().lock().get_dimensions();
+        let (char_width, char_height) = get_lfb().lock().get_char_dimensions();
 
         Shell {
             cursor_x: 0,
@@ -356,7 +356,7 @@ impl Shell {
             core::ptr::copy(src, dst, count);
         }
 
-        // clear  last line
+        // clear last line
         let start_y = height - self.char_height;
         for y in start_y..height {
             for x in 0..width {

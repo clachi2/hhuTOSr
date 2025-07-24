@@ -531,6 +531,14 @@ impl KeyQueue {
             }
         }
     }
+
+    /// Clear the key queue by removing all keys.
+    pub fn clear_keys(&self) {
+        if self.receiver.is_closed() {
+            panic!("KeyQueue is closed!");
+        }
+        while let Ok(_) = self.receiver.try_dequeue() {}
+    }
 }
 
 /* ╔═════════════════════════════════════════════════════════════════════════╗

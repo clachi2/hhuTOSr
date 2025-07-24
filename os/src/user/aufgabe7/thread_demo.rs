@@ -83,5 +83,6 @@ pub fn thread_demo(args: &[String]) {
     scheduler.wait_on_thread(id2);
     scheduler.wait_on_thread(id3);
     shell_print_at!(10, 20, "All threads finished. Press any key to continue...");
+    keyboard::get_key_buffer().clear_keys();
     let key = keyboard::get_key_buffer().wait_for_key();
 }
