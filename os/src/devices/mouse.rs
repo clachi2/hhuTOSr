@@ -6,8 +6,9 @@ use crate::kernel::interrupts::pic::Irq;
 use alloc::boxed::Box;
 use nolock::queues::mpmc;
 use nolock::queues::mpmc::bounded::scq::{Receiver, Sender};
-use spin::{Mutex, Once};
+use spin::Once;
 use crate::kernel::cpu::IoPort;
+use crate::library::mutex::Mutex;
 
 static MOUSE_BUFFER: Once<MouseQueue> = Once::new();
 static MOUSE: Mutex<Mouse> = Mutex::new(Mouse::new());

@@ -5,3 +5,4 @@ pub mod shell_commands;
 pub mod sound_demo;
 pub mod thread_demo;
 pub mod heap_demo;
+pub mod spinner;

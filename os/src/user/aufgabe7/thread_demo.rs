@@ -21,10 +21,10 @@ fn thread_entry(args: &[String]) {
 
         count += 1;
 
-        if count % 30 == 0 {
+        if count % 100 == 0 {
             get_scheduler().yield_cpu();
         }
-        if count > 50000 {
+        if count > 100000 {
             kprintln!(
                 "Thread [{}] finished {} iterations after {} ms.",
                 id,

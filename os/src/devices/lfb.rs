@@ -14,11 +14,11 @@ pub fn init_lfb(addr: *mut u8, pitch: u32, width: u32, height: u32, bpp: u8) {
     LFB.call_once(|| { 
         Mutex::new(LFB::new(addr, pitch, width, height, bpp))
     });
-    IS_LFB_INITIALIZED.store(true, core::sync::atomic::Ordering::SeqCst);
+    IS_LFB_INITIALIZED.store(true, core::sync::atomic::Ordering::Relaxed);
 }
 
 pub fn is_lfb_initialized() -> bool {
-    IS_LFB_INITIALIZED.load(core::sync::atomic::Ordering::SeqCst)
+    IS_LFB_INITIALIZED.load(core::sync::atomic::Ordering::Relaxed)
 }
 
 /// Global access to the Linear Framebuffer (LFB).

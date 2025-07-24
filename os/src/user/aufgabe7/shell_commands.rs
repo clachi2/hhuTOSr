@@ -18,18 +18,18 @@ pub fn cmd_echo(args: &[String]) {
 pub fn cmd_time(args: &[String]) {
     let time = get_system_time();
     if time < 1000 {
-        shell_println!("up time: {} ms", time);
+        shell_println!("uptime: {} ms", time);
     } else if time < 1000 * 60 {
-        shell_println!("up time: {} seconds", time / 1000);
+        shell_println!("uptime: {} seconds", time / 1000);
     } else if time < 1000 * 60 * 60 {
         shell_println!(
-            "up time: {} minutes {} seconds",
+            "uptime: {} minutes {} seconds",
             time / (1000 * 60),
             (time % (1000 * 60)) / 1000
         );
     } else {
         shell_println!(
-            "up time: {} hours {} minutes {} seconds",
+            "uptime: {} hours {} minutes {} seconds",
             time / (1000 * 60 * 60),
             (time % (1000 * 60 * 60)) / (1000 * 60),
             (time % (1000 * 60)) / 1000
@@ -55,7 +55,7 @@ pub fn cmd_pci_list(args: &[String]) {
     }
 }
 
-pub fn cmd_network_demo(args: &[String]) {
+pub fn cmd_network(args: &[String]) {
     // Just a short demo to show how to access PCI devices
     // For more information, see the OsDev Wiki: https://wiki.osdev.org/PCI, https://wiki.osdev.org/RTL8139
     let rtl8139 = get_pci_bus()

@@ -9,9 +9,10 @@ use crate::user::aufgabe7::graphic_demo::draw_demo;
 use crate::user::aufgabe7::heap_demo::heap_demo;
 use crate::user::aufgabe7::mouse_demo::mouse_demo;
 use crate::user::aufgabe7::shell_commands::{
-    cmd_echo, cmd_kill, cmd_network_demo, cmd_pci_list, cmd_ps, cmd_time,
+    cmd_echo, cmd_kill, cmd_network, cmd_pci_list, cmd_ps, cmd_time,
 };
 use crate::user::aufgabe7::sound_demo::sound_demo;
+use crate::user::aufgabe7::spinner::spinner;
 use crate::user::aufgabe7::thread_demo::thread_demo;
 use crate::{kernel, user};
 use alloc::string::{String, ToString};
@@ -20,11 +21,11 @@ use alloc::{format, vec};
 use core::fmt::Write;
 
 static mut GLOBAL_SHELL_PTR: *mut Shell = core::ptr::null_mut();
-static PRINT_LOCK: Mutex<()> = Mutex::new(());
+pub static CURSOR_LOCK: Mutex<()> = Mutex::new(());
 const PROMPT: &str = "> ";
 const PROMPT_COLOR: u32 = HHU_GREEN;
 const TEXT_COLOR: u32 = WHITE;
-const ERROR_COLOR: u32 = HHU_RED;
+const HIGHLIGHT_COLOR: u32 = HHU_RED;
 
 pub fn shell_thread(args: &[String]) {
     let mut shell = Shell::new();
@@ -51,7 +52,7 @@ impl Shell {
 
         Shell {
             cursor_x: 0,
-            cursor_y: 0,
+            cursor_y: 1,
             char_width,
             char_height,
             width: screen_width / char_width,
@@ -85,16 +86,17 @@ impl Shell {
             "mouse" => self.execute_command_thread(mouse_demo, args, true, true, "mouse-demo"),
             "heap" => self.execute_command_thread(heap_demo, args, false, true, "heap-demo"),
             "pci_list" => self.execute_command_thread(cmd_pci_list, args, false, true, "pci-list"),
-            "network" => {
-                self.execute_command_thread(cmd_network_demo, args, false, true, "network-demo")
-            }
+            "network" => self.execute_command_thread(cmd_network, args, false, true, "network"),
+            "spinner" => self.execute_command_thread(spinner, args, false, false, "spinner"),
             "reboot" => kernel::cpu::reboot(),
             "panic" => panic!("User triggered panic!"),
             "" => {} // Ignore empty input
             _ => {
-                self.set_color(ERROR_COLOR);
-                write!(self, "Error: Command not found '{}'\n", command).unwrap();
-                self.set_color(TEXT_COLOR);
+                crate::shell_println_colored!(
+                    HIGHLIGHT_COLOR,
+                    "Error: Command not found '{}'",
+                    command
+                );
             }
         }
     }
@@ -124,24 +126,25 @@ impl Shell {
     }
 
     fn cmd_help(&mut self, _args: &[String]) {
-        self.print_str("Available commands:\n");
-        self.print_str("  help       - Shows this help message\n");
-        self.print_str("  clear      - Clears the screen\n");
-        self.print_str("  banner     - Shows welcome banner\n");
-        self.print_str("  history    - Shows command history\n");
-        self.print_str("  echo       - Prints the given arguments\n");
-        self.print_str("  time       - Shows system uptime\n");
-        self.print_str("  ps         - Lists running processes\n");
-        self.print_str("  kill <pid> - Kills a process by its ID\n");
-        self.print_str("  graphic    - Runs a graphic demo\n");
-        self.print_str("  threads    - Runs a thread demo\n");
-        self.print_str("  sound      - Plays a sound demo\n");
-        self.print_str("  mouse      - Runs a mouse demo\n");
-        self.print_str("  heap       - Runs a heap demo\n");
-        self.print_str("  pci_list   - Lists PCI devices\n");
-        self.print_str("  network    - Checks PCI network device\n");
-        self.print_str("  reboot     - Reboots the system\n");
-        self.print_str("  panic      - Triggers a kernel panic\n");
+        crate::shell_println!("Available commands:");
+        crate::shell_println!("  help       - Shows this help message");
+        crate::shell_println!("  clear      - Clears the screen");
+        crate::shell_println!("  banner     - Shows welcome banner");
+        crate::shell_println!("  history    - Shows command history");
+        crate::shell_println!("  echo       - Prints the given arguments");
+        crate::shell_println!("  time       - Shows system uptime");
+        crate::shell_println!("  ps         - Lists running processes");
+        crate::shell_println!("  kill <pid> - Kills a process by its ID");
+        crate::shell_println!("  graphic    - Runs a graphic demo");
+        crate::shell_println!("  threads    - Runs a thread demo");
+        crate::shell_println!("  sound      - Plays a sound demo");
+        crate::shell_println!("  mouse      - Runs a mouse demo");
+        crate::shell_println!("  heap       - Runs a heap demo");
+        crate::shell_println!("  pci_list   - Lists PCI devices");
+        crate::shell_println!("  network    - Checks PCI network device");
+        crate::shell_println!("  spinner    - Runs a spinner and process count demo");
+        crate::shell_println!("  reboot     - Reboots the system");
+        crate::shell_println!("  panic      - Triggers a kernel panic");
     }
 
     pub fn run(&mut self) {
@@ -150,7 +153,7 @@ impl Shell {
         }
         self.clear_screen();
         self.print_banner();
-        self.print_str("Type 'help' for a list of commands.\n\n");
+        crate::shell_println!("Type 'help' for a list of commands.\n");
         self.print_prompt();
         self.draw_cursor();
 
@@ -161,7 +164,7 @@ impl Shell {
             match key.get_ascii() {
                 // Enter
                 13 => {
-                    self.print_char('\n');
+                    crate::shell_print!("\n");
                     let command = self.command_buffer.trim().to_string();
                     if !command.is_empty() {
                         if self.history.last() != Some(&command) {
@@ -184,7 +187,7 @@ impl Shell {
                 ascii if ascii >= 32 && ascii <= 126 => {
                     let c = ascii as char;
                     self.command_buffer.push(c);
-                    self.print_char(c);
+                    crate::shell_print!("{}", c);
                 }
                 _ => {}
             }
@@ -232,7 +235,7 @@ impl Shell {
             // load history command
             let cmd = self.history[self.history_index as usize].clone();
             self.command_buffer.push_str(&cmd);
-            self.print_str(&cmd);
+            crate::shell_print!("{}", cmd);
         }
     }
 
@@ -245,19 +248,19 @@ impl Shell {
             .history
             .iter()
             .enumerate()
-            .map(|(i, s)| format!("  {}: {}\n", i + 1, s.clone()))
+            .map(|(i, s)| format!("  {}: {}", i + 1, s.clone()))
             .collect();
         for line in history_stings {
-            write!(self, "{}", line).unwrap();
+            crate::shell_println!("  {}", line);
         }
         if self.history.is_empty() {
-            self.print_str("  No commands in history.\n");
+            crate::shell_println_colored!(HIGHLIGHT_COLOR, "  No commands in history.");
         }
     }
 
     fn print_banner(&mut self) {
-        self.set_color(HHU_RED);
-        self.print_str(
+        crate::shell_print_colored!(
+            HIGHLIGHT_COLOR,
             "
                                _ _              ____   _____
                               | (_)            / __ \\ / ____|
@@ -270,13 +273,10 @@ impl Shell {
 
 ",
         );
-        self.set_color(TEXT_COLOR);
     }
 
     fn print_prompt(&mut self) {
-        self.set_color(PROMPT_COLOR);
-        self.print_str(PROMPT);
-        self.set_color(TEXT_COLOR);
+        crate::shell_print_colored!(PROMPT_COLOR, "{}", PROMPT);
     }
 
     fn handle_newline(&mut self) {
@@ -310,35 +310,32 @@ impl Shell {
 
     fn set_cursor_position(&mut self, x: u32, y: u32) {
         if x < self.width && y < self.height {
-            self.erase_cursor();
             self.cursor_x = x;
             self.cursor_y = y;
-            self.draw_cursor();
         }
     }
 
     fn draw_cursor(&self) {
-        get_lfb().lock().draw_char(
+        crate::shell_print_at!(
             self.cursor_x * self.char_width,
             self.cursor_y * self.char_height,
-            TEXT_COLOR,
-            '_',
+            "_"
         );
     }
 
     fn erase_cursor(&self) {
-        get_lfb().lock().draw_char(
+        crate::shell_print_at!(
             self.cursor_x * self.char_width,
             self.cursor_y * self.char_height,
-            lfb::BLACK,
-            ' ',
+            " "
         );
     }
 
     fn clear_screen(&mut self) {
+        let _lock = CURSOR_LOCK.lock();
         get_lfb().lock().clear();
         self.cursor_x = 0;
-        self.cursor_y = 0;
+        self.cursor_y = 1;
     }
 
     fn scroll_screen(&mut self) {
@@ -394,7 +391,23 @@ impl Shell {
 
 impl Write for Shell {
     fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        self.print_str(s);
+        for c in s.chars() {
+            if c == '\n' {
+                self.handle_newline();
+                continue;
+            }
+
+            if self.cursor_x >= self.width {
+                self.handle_newline();
+            }
+
+            let x_px = self.cursor_x * self.char_width;
+            let y_px = self.cursor_y * self.char_height;
+            get_lfb()
+                .lock()
+                .draw_char(x_px, y_px, self.current_color, c);
+            self.cursor_x += 1;
+        }
         Ok(())
     }
 }
@@ -402,7 +415,7 @@ impl Write for Shell {
 #[doc(hidden)]
 pub fn _print(args: core::fmt::Arguments) {
     unsafe {
-        let _lock = PRINT_LOCK.lock();
+        let _lock = CURSOR_LOCK.lock();
         if !GLOBAL_SHELL_PTR.is_null() {
             if let Some(shell) = GLOBAL_SHELL_PTR.as_mut() {
                 shell.write_fmt(args).unwrap();
@@ -414,13 +427,28 @@ pub fn _print(args: core::fmt::Arguments) {
 #[doc(hidden)]
 pub fn _print_at(x: u32, y: u32, args: core::fmt::Arguments) {
     unsafe {
-        let _lock = PRINT_LOCK.lock();
+        let _lock = CURSOR_LOCK.lock();
         if !GLOBAL_SHELL_PTR.is_null() {
             if let Some(shell) = GLOBAL_SHELL_PTR.as_mut() {
                 let (current_x, current_y) = shell.get_cursor_position();
                 shell.set_cursor_position(x, y);
                 shell.write_fmt(args).unwrap();
                 shell.set_cursor_position(current_x, current_y);
+            }
+        }
+    }
+}
+
+#[doc(hidden)]
+pub fn _print_colored(color: u32, args: core::fmt::Arguments) {
+    unsafe {
+        let _lock = CURSOR_LOCK.lock();
+        if !GLOBAL_SHELL_PTR.is_null() {
+            if let Some(shell) = GLOBAL_SHELL_PTR.as_mut() {
+                let current_color = shell.current_color;
+                shell.set_color(color);
+                shell.write_fmt(args).unwrap();
+                shell.set_color(current_color);
             }
         }
     }
@@ -446,4 +474,15 @@ macro_rules! shell_print_at {
 macro_rules! shell_println_at {
     ($x:expr, $y:expr) => ($crate::shell_print_at!($x, $y, "\n"));
     ($x:expr, $y:expr, $($arg:tt)*) => ($crate::shell_print_at!($x, $y, "{}\n", format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! shell_print_colored {
+    ($color:expr, $($arg:tt)*) => ($crate::user::shell::_print_colored($color, format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! shell_println_colored {
+    ($color:expr) => ($crate::shell_print_colored!($color, "\n"));
+    ($color:expr, $($arg:tt)*) => ($crate::shell_print_colored!($color, "{}\n", format_args!($($arg)*)));
 }

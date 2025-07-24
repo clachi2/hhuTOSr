@@ -63,6 +63,8 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
+use crate::user::aufgabe7::spinner::spinner;
+
 fn aufgabe1() {
     cga::CGA.lock().clear();
     text_demo::run();
@@ -149,7 +151,9 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
 
                 let scheduler = get_scheduler();
                 let shell = Thread::new(shell_thread, Vec::new(), String::from("shell"));
+                let spinner = Thread::new(spinner, vec![String::from("250")], String::from("spinner"), );
                 scheduler.ready(shell);
+                scheduler.ready(spinner);
                 scheduler.schedule();
 
                 // graphic_demo::run();
@@ -162,11 +166,11 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                 // --------------------
 
                 // ---- Aufgabe 4 ----
-                aufgabe4();
+                // aufgabe4();
                 // --------------------
 
                 // ---- Aufgabe 5 ----
-                // aufgabe5();
+                aufgabe5();
                 // --------------------
             }
         }

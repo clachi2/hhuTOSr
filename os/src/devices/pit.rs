@@ -8,7 +8,7 @@
 */
 use crate::devices::cga;
 use crate::devices::cga::{CGA, Color};
-use crate::devices::lfb::{HHU_RED, is_lfb_initialized};
+use crate::devices::lfb::{HHU_RED, is_lfb_initialized, LFB, get_lfb};
 use crate::kernel::allocator::ALLOCATOR;
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;
@@ -17,13 +17,14 @@ use crate::kernel::interrupts::isr::ISR;
 use crate::kernel::interrupts::pic::Irq;
 use crate::kernel::interrupts::{intdispatcher, pic};
 use crate::kernel::threads::scheduler::get_scheduler;
+use crate::shell_print_at;
 use alloc::boxed::Box;
 use alloc::format;
 use core::arch::asm;
 use core::mem::forget;
 use core::sync::atomic::AtomicUsize;
 use spin::Once;
-use crate::shell_print_at;
+use crate::user::shell;
 
 // Ports
 const PORT_CTRL: u16 = 0x43;
@@ -95,15 +96,6 @@ impl ISR for TimerISR {
                     cga.setpos(79, 0);
                     cga.print_byte(SPINNER_CHARS[spinner_index] as u8);
                     cga.setpos(pos.0, pos.1);
-                }
-                if is_lfb_initialized() {
-                    if let Some(mut lfb) = crate::devices::lfb::get_lfb().try_lock() {
-                        let spinner_char =
-                            SPINNER_CHARS[(current_time / self.interval_ms) % SPINNER_CHARS.len()];
-                        let (x, y) = lfb.get_dimensions();
-                        lfb.draw_char(x - 20, 10, HHU_RED, spinner_char);
-                        lfb.draw_str(x-50, 10, HHU_RED, &*format!("P:{}", get_scheduler().process_count()));
-                    }
                 }
             }
         }

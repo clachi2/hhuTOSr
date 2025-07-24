@@ -68,8 +68,7 @@ impl<T> Mutex<T> {
             let (mut thread, int) = get_scheduler().prepare_block();
             let thread_ptr = thread.as_mut() as *mut Thread;
             {
-                let mut wait_queue = self.wait_queue.lock();
-                wait_queue.enqueue(thread);
+                self.wait_queue.lock().enqueue(thread);
             }
 
             unsafe {
@@ -106,8 +105,7 @@ impl<T> Mutex<T> {
             return;
         }
         {
-            let mut wait_queue = self.wait_queue.lock();
-            if let Some(thread) = wait_queue.dequeue() {
+            if let Some(thread) = self.wait_queue.lock().dequeue() {
                 get_scheduler().ready_after_block(thread);
             }
         }

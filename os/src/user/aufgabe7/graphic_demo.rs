@@ -1,11 +1,11 @@
 use alloc::string::String;
-use crate::devices::lfb::{get_lfb, HHU_BLUE, HHU_GREEN, LFB};
+use crate::devices::lfb::{get_lfb, HHU_BLUE, HHU_GREEN, HHU_RED, LFB};
 use crate::devices::{keyboard, pcspk};
 use crate::kernel::threads::scheduler::get_scheduler;
 use crate::kernel::threads::thread::Thread;
 use crate::user::aufgabe7::bmp_hhu;
 
-const MESSAGE: &str = "Welcome to hhuTOS!";
+const MESSAGE: &str = "Welcome to corrodingOS! Press any key to continue...";
 
 pub fn draw_demo(args: &[String]) {
     let dimensions = get_lfb().lock().get_dimensions();
@@ -28,8 +28,8 @@ pub fn draw_demo(args: &[String]) {
 
     // Draw a message
     let char_dimensions = get_lfb().lock().get_char_dimensions();
-    let text_pos = ((dimensions.0 - MESSAGE.len() as u32 * char_dimensions.0) / 2, bmp_pos.1 - char_dimensions.1 - char_dimensions.1 / 2);
-    get_lfb().lock().draw_str(text_pos.0, text_pos.1, HHU_BLUE, MESSAGE);
+    let text_pos = ((dimensions.0 - MESSAGE.len() as u32 * char_dimensions.0) / 2, char_dimensions.1);
+    get_lfb().lock().draw_str(text_pos.0, text_pos.1, HHU_RED, MESSAGE);
     keyboard::get_key_buffer().wait_for_key();
 }
 
