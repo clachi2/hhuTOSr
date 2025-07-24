@@ -43,6 +43,7 @@ struct Shell {
     history: Vec<String>,
     history_index: i32,
     current_color: u32,
+    command_start_line: u32,
 }
 
 impl Shell {
@@ -61,6 +62,7 @@ impl Shell {
             history: Vec::new(),
             history_index: -1,
             current_color: TEXT_COLOR,
+            command_start_line: 1,
         }
     }
 
@@ -175,12 +177,13 @@ impl Shell {
                     self.command_buffer.clear();
                     self.history_index = -1;
                     self.print_prompt();
+                    self.command_start_line = self.cursor_y;
                 }
                 // Backspace
                 8 => {
                     if !self.command_buffer.is_empty() {
-                        self.command_buffer.pop();
                         self.erase_char_on_screen();
+                        self.command_buffer.pop();
                     }
                 }
                 // everything else printable
@@ -277,6 +280,7 @@ impl Shell {
 
     fn print_prompt(&mut self) {
         crate::shell_print_colored!(PROMPT_COLOR, "{}", PROMPT);
+        self.command_start_line = self.cursor_y;
     }
 
     fn handle_newline(&mut self) {
@@ -289,18 +293,18 @@ impl Shell {
     }
 
     fn erase_char_on_screen(&mut self) {
-        // We can only erase if the cursor is after the prompt.
-        let prompt_len = if self.cursor_y == 0 {
-            PROMPT.len() as u32
-        } else {
-            0
-        };
-
-        if self.cursor_x > prompt_len {
+        if self.command_buffer.is_empty()
+            || (self.cursor_y == self.command_start_line && self.cursor_x <= PROMPT.len() as u32)
+        {
+            return;
+        }
+        self.erase_cursor();
+        if self.cursor_x == 0 && self.cursor_y > self.command_start_line {
+            self.cursor_y -= 1;
+            self.cursor_x = self.width;
+        }
+        if self.cursor_x > 0 {
             self.cursor_x -= 1;
-            let x_px = self.cursor_x * self.char_width;
-            let y_px = self.cursor_y * self.char_height;
-            get_lfb().lock().draw_char(x_px, y_px, lfb::BLACK, ' ');
         }
     }
 
@@ -309,7 +313,7 @@ impl Shell {
     }
 
     fn set_cursor_position(&mut self, x: u32, y: u32) {
-        if x < self.width && y < self.height {
+        if x <= self.width && y <= self.height {
             self.cursor_x = x;
             self.cursor_y = y;
         }
@@ -317,16 +321,16 @@ impl Shell {
 
     fn draw_cursor(&self) {
         crate::shell_print_at!(
-            self.cursor_x * self.char_width,
-            self.cursor_y * self.char_height,
+            self.cursor_x,
+            self.cursor_y,
             "_"
         );
     }
 
     fn erase_cursor(&self) {
         crate::shell_print_at!(
-            self.cursor_x * self.char_width,
-            self.cursor_y * self.char_height,
+            self.cursor_x,
+            self.cursor_y,
             " "
         );
     }
@@ -336,6 +340,7 @@ impl Shell {
         get_lfb().lock().clear();
         self.cursor_x = 0;
         self.cursor_y = 1;
+        self.command_start_line = 1;
     }
 
     fn scroll_screen(&mut self) {
@@ -357,30 +362,6 @@ impl Shell {
             for x in 0..width {
                 lfb.draw_pixel(x, y, lfb::BLACK);
             }
-        }
-    }
-
-    fn print_char(&mut self, c: char) {
-        if c == '\n' {
-            self.handle_newline();
-            return;
-        }
-
-        if self.cursor_x >= self.width {
-            self.handle_newline();
-        }
-
-        let x_px = self.cursor_x * self.char_width;
-        let y_px = self.cursor_y * self.char_height;
-        get_lfb()
-            .lock()
-            .draw_char(x_px, y_px, self.current_color, c);
-        self.cursor_x += 1;
-    }
-
-    fn print_str(&mut self, s: &str) {
-        for c in s.chars() {
-            self.print_char(c);
         }
     }
 
