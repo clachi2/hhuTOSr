@@ -61,13 +61,13 @@ pub fn thread_demo(args: &[String]) {
         .and_then(|s| s.parse::<usize>().ok())
         .unwrap_or(3);
 
-    // if num_threads < 1 || num_threads > 99 {
-    //     shell_println_at!(10, 68, "Invalid number of threads. Please specify a number between 1 and 99.");
-    //     shell_print_at!(10, 70, "Press any key to continue...");
-    //     keyboard::get_key_buffer().clear_keys();
-    //     let key = keyboard::get_key_buffer().wait_for_key();
-    //     return;
-    // }
+    if num_threads < 1 || num_threads > 99 {
+        shell_println_at!(10, 68, "Invalid number of threads. Please specify a number between 1 and 99.");
+        shell_print_at!(10, 70, "Press any key to continue...");
+        keyboard::get_key_buffer().clear_keys();
+        let key = keyboard::get_key_buffer().wait_for_key();
+        return;
+    }
 
     let scheduler = get_scheduler();
 
