@@ -11,13 +11,15 @@ use alloc::{format, vec};
 use nolock::queues::mpsc::jiffy::queue;
 
 fn thread_entry(args: &[String]) {
-    let row = args[0].parse::<u32>().unwrap_or(0);
+    let mut num = args[0].parse::<u32>().unwrap_or(0);
+    let column = num / 33;
+    let num = num % 33;
     let id = get_scheduler().get_active_tid();
     let mut count = 0;
 
     let time_start = pit::get_system_time();
     loop {
-        shell_println_at!(10, 10 + (row * 2), "Thread [{}]: {}", id, count);
+        shell_println_at!(10 + (column * 30), 4 + (num * 2), "Thread [{}]: {}", id, count);
 
         count += 1;
 
@@ -54,35 +56,37 @@ fn thread_music() {
 }
 
 pub fn thread_demo(args: &[String]) {
+    let num_threads = args
+        .get(0)
+        .and_then(|s| s.parse::<usize>().ok())
+        .unwrap_or(3);
+
+    // if num_threads < 1 || num_threads > 99 {
+    //     shell_println_at!(10, 68, "Invalid number of threads. Please specify a number between 1 and 99.");
+    //     shell_print_at!(10, 70, "Press any key to continue...");
+    //     keyboard::get_key_buffer().clear_keys();
+    //     let key = keyboard::get_key_buffer().wait_for_key();
+    //     return;
+    // }
+
     let scheduler = get_scheduler();
 
-    let thread1 = Thread::new(
-        thread_entry,
-        vec![String::from("1")],
-        String::from("Thread Demo 1"),
-    );
-    let thread2 = Thread::new(
-        thread_entry,
-        vec![String::from("2")],
-        String::from("Thread Demo 2"),
-    );
-    let thread3 = Thread::new(
-        thread_entry,
-        vec![String::from("3")],
-        String::from("Thread Demo 3"),
-    );
+    let mut ids = Vec::new();
+    for i in 0..num_threads {
+        let thread = Thread::new(
+            thread_entry,
+            vec![format!("{}", i)],
+            format!("Thread Demo {}", i + 1),
+        );
+        ids.push(thread.get_id());
+        scheduler.ready(thread);
+    }
 
-    let id1 = thread1.get_id();
-    let id2 = thread2.get_id();
-    let id3 = thread3.get_id();
+    for id in &ids {
+        scheduler.wait_on_thread(*id);
+    }
 
-    scheduler.ready(thread1);
-    scheduler.ready(thread2);
-    scheduler.ready(thread3);
-    scheduler.wait_on_thread(id1);
-    scheduler.wait_on_thread(id2);
-    scheduler.wait_on_thread(id3);
-    shell_print_at!(10, 20, "All threads finished. Press any key to continue...");
+    shell_print_at!(10, 70, "All threads finished. Press any key to continue...");
     keyboard::get_key_buffer().clear_keys();
     let key = keyboard::get_key_buffer().wait_for_key();
 }
