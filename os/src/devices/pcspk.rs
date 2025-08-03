@@ -83,11 +83,30 @@ impl Speaker {
         }
     }
 
+    //Bits Wert Bedeutung
+    // 6-7
+    // Zählerauswahl
+    // 00 Zähler 0
+    // 01 Zähler 1
+    // 10 Zähler 2
+    // 11 ungültig
+    // 4-5
+    // Zugriffsmodus auf oben gewählten Zähler
+    // 00 Zähler-Latch-Befehl
+    // 01 niederwertiges Zählerbyte
+    // 10 höherwertiges Zählerbyte
+    // 11 niederwertiges, anschließend höherwertiges Zählerbyte
+    // 1-3 Funktionsmodus 0 bis 5
+    // 0
+    // Zählformat
+    // 0 binäre Zählung mit 16 Bit
+    // 1 Zählung mit vierstelligen BCD-Zahlen
+
     /// Play a specific frequency for a given amount of time (milliseconds).
     pub fn play(&mut self, frequency: usize, duration: usize) {
         let divisor = (1193180 / frequency) as u16;
         unsafe {
-            self.pit_ctrl_port.outb(0xB6); // mode 3, counter 2
+            self.pit_ctrl_port.outb(0xB6); // mode 3, both bytes, counter 2
             self.pit_data2_port.outb((divisor & 0xFF) as u8);
             self.pit_data2_port.outb((divisor >> 8) as u8);
         }
@@ -134,7 +153,7 @@ impl Speaker {
     fn delay(&mut self, duration: usize) {
         // set the PIT to mode 2 (rate generator) with a reload value of 1193
         unsafe {
-            self.pit_ctrl_port.outb(0x34); // mode 2, counter 0
+            self.pit_ctrl_port.outb(0x34); // mode 2, both bytes, counter 0
             self.pit_data0_port.outb((1193 & 0xFF) as u8);
             self.pit_data0_port.outb((1193 >> 8) as u8);
         }

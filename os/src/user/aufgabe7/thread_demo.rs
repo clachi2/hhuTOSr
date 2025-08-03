@@ -13,7 +13,7 @@ use nolock::queues::mpsc::jiffy::queue;
 fn thread_entry(args: &[String]) {
     let mut num = args[0].parse::<u32>().unwrap_or(0);
     let column = num / 33;
-    let num = num % 33;
+    num = num % 33;
     let id = get_scheduler().get_active_tid();
     let mut count = 0;
 

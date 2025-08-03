@@ -52,6 +52,7 @@ impl<T> Mutex<T> {
     /// so it can try to acquire the lock again.
     pub fn lock(&self) -> MutexGuard<T> {
         if !SCHEDULER_ACTIVE.load(core::sync::atomic::Ordering::Relaxed) {
+            // act like a spinlock if the scheduler is not active
             let mut temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
             while temp {
                 unsafe {
@@ -102,6 +103,7 @@ impl<T> Mutex<T> {
             .store(false, core::sync::atomic::Ordering::Release);
 
         if !SCHEDULER_ACTIVE.load(core::sync::atomic::Ordering::Relaxed) {
+            // act like a spinlock if the scheduler is not active
             return;
         }
         {

@@ -18,7 +18,7 @@ pub fn spinner(args: &[String]) {
             shell_print_at!(
                 0,
                 0,
-                "{} P:{}",
+                "{} P:{}   ",
                 SPINNER_CHARS[(current_time / delta_time) % SPINNER_CHARS.len()],
                 get_scheduler().process_count(),
             );

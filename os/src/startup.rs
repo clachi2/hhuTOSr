@@ -132,7 +132,7 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     println!("initializing PIT... done");
     kprintln!("initializing PIT... done");
 
-    kprintln!("Welcome to hhuTOS!");
+    kprintln!("Welcome to corrodingOS!");
 
     // Check the framebuffer type and either show the CGA menu or initialize the linear framebuffer (LFB)
     if let Some(framebuffer_info) = multiboot_info.get_framebuffer_info() {

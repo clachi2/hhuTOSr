@@ -8,9 +8,7 @@ use crate::library::mutex::Mutex;
 use crate::user::aufgabe7::graphic_demo::draw_demo;
 use crate::user::aufgabe7::heap_demo::heap_demo;
 use crate::user::aufgabe7::mouse_demo::mouse_demo;
-use crate::user::aufgabe7::shell_commands::{
-    cmd_echo, cmd_kill, cmd_network, cmd_pci_list, cmd_ps, cmd_time,
-};
+use crate::user::aufgabe7::shell_commands::{cmd_echo, cmd_kill, cmd_network, cmd_numbers, cmd_pci_list, cmd_ps, cmd_time};
 use crate::user::aufgabe7::sound_demo::sound_demo;
 use crate::user::aufgabe7::spinner::spinner;
 use crate::user::aufgabe7::thread_demo::thread_demo;
@@ -82,6 +80,7 @@ impl Shell {
             "time" => self.execute_command_thread(cmd_time, args, false, true, "time"),
             "ps" => self.execute_command_thread(cmd_ps, args, false, true, "ps"),
             "kill" => self.execute_command_thread(cmd_kill, args, false, true, "kill"),
+            "numbers" => self.execute_command_thread(cmd_numbers, args, false, true, "numbers"),
             "graphic" => self.execute_command_thread(draw_demo, args, true, true, "graphic-demo"),
             "threads" => self.execute_command_thread(thread_demo, args, true, true, "thread-demo"),
             "sound" => self.execute_command_thread(sound_demo, args, false, false, "sound-demo"),
@@ -137,8 +136,9 @@ impl Shell {
         crate::shell_println!("  time       - Shows system uptime");
         crate::shell_println!("  ps         - Lists running processes");
         crate::shell_println!("  kill <pid> - Kills a process by its ID");
+        crate::shell_println!("  numbers    - prints decimal, hexadecimal and binary numbers");
         crate::shell_println!("  graphic    - Runs a graphic demo");
-        crate::shell_println!("  threads    - Runs a thread demo");
+        crate::shell_println!("  threads <n>- Runs a thread demo");
         crate::shell_println!("  sound      - Plays a sound demo");
         crate::shell_println!("  mouse      - Runs a mouse demo");
         crate::shell_println!("  heap       - Runs a heap demo");

@@ -37,6 +37,16 @@ pub fn cmd_time(args: &[String]) {
     }
 }
 
+pub fn cmd_numbers(args: &[String]) {
+    shell_println!(" ");
+    shell_println!("| Decimal | Hexadecimal | Binary    |");
+    shell_println!("-------------------------------------");
+    for i in 0..17 {
+        shell_println!("| {:>7} | {:#11x} | {:>9b} |", i, i, i);
+    }
+    shell_println!(" ");
+}
+
 pub fn cmd_pci_list(args: &[String]) {
     let devices = get_pci_bus();
     if devices.iter().count() == 0 {
