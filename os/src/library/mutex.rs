@@ -107,9 +107,15 @@ impl<T> Mutex<T> {
             return;
         }
         {
-            if let Some(thread) = self.wait_queue.lock().dequeue() {
+            let old_int = cpu::disable_int_nested();
+            let dequeued = self.wait_queue.lock().dequeue();
+            cpu::enable_int_nested(old_int);
+            if let Some(thread) = dequeued {
                 get_scheduler().ready_after_block(thread);
             }
+            // if let Some(thread) = self.wait_queue.lock().dequeue() {
+            //     get_scheduler().ready_after_block(thread);
+            // }
         }
     }
 

@@ -289,7 +289,9 @@ impl Shell {
         if self.cursor_y >= self.height {
             self.scroll_screen();
             self.cursor_y = self.height - 1;
-            self.command_start_line -= 1;
+            if self.command_start_line > 0 {
+                self.command_start_line -= 1;
+            }
         }
     }
 
