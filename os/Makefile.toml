@@ -54,7 +54,7 @@ args = [ "-f", "elf64", "-w+error=label-redef-late", "-o", "${BUILD_DIRECTORY}/b
 #
 [tasks.link.mac]
 command = "${LINKER_MAC}"
-args = [ "-n", "-T", "${LINKER_FILE}", "-o", "${KERNEL}", "${BUILD_DIRECTORY}/boot.o", "${RUST_OBJECT}" ]
+args = [ "-n", "-T", "${LINKER_FILE}", "-o", "${KERNEL}", "${BUILD_DIRECTORY}/boot.o", "${RUST_OBJECT}", "-e", "0x100030" ]
 dependencies = [ "compile", "build-boot-asm" ]
 
 [tasks.link.linux]

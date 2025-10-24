@@ -37,7 +37,7 @@ impl<T> Mutex<T> {
     }
 
     /// Try to acquire the lock once without blocking.
-    pub fn try_lock(&self) -> Option<MutexGuard<T>> {
+    pub fn try_lock(&self) -> Option<MutexGuard<'_, T>> {
         let temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
         if temp {
             return None;
@@ -50,7 +50,7 @@ impl<T> Mutex<T> {
     /// and store it in the `wait_queue`.
     /// Once the lock is available, the next thread in the `wait_queue` will be woken up
     /// so it can try to acquire the lock again.
-    pub fn lock(&self) -> MutexGuard<T> {
+    pub fn lock(&self) -> MutexGuard<'_, T> {
         if !SCHEDULER_ACTIVE.load(core::sync::atomic::Ordering::Relaxed) {
             // act like a spinlock if the scheduler is not active
             let mut temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);

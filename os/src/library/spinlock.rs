@@ -27,7 +27,7 @@ impl<T> Spinlock<T> {
     }
 
     /// Try to acquire the lock once without blocking.
-    pub fn try_lock(&self) -> Option<SpinlockGuard<T>> {
+    pub fn try_lock(&self) -> Option<SpinlockGuard<'_, T>> {
 
         let temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
 
@@ -39,7 +39,7 @@ impl<T> Spinlock<T> {
     }
 
     /// Spin until the lock is acquired, then return a guard that allows access to the data.
-    pub fn lock(&self) -> SpinlockGuard<T> {
+    pub fn lock(&self) -> SpinlockGuard<'_, T> {
 
         let mut temp = self.lock.swap(true, core::sync::atomic::Ordering::Acquire);
 

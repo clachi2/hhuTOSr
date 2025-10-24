@@ -24,79 +24,75 @@ fn next_id() -> usize {
 }
 
 /// Low-level routine for starting a coroutine.
-#[naked]
+#[unsafe(naked)]
 unsafe extern "C" fn coroutine_start(stack_ptr: usize) {
-    unsafe {
-        naked_asm!(
-            "mov rsp, rdi", // move stack to subroutine stack pointer
-            // restore all registers
-            "popf",
-            "pop rbp",
-            "pop rdi",
-            "pop rsi",
-            "pop rdx",
-            "pop rcx",
-            "pop rbx",
-            "pop rax",
-            "pop r15",
-            "pop r14",
-            "pop r13",
-            "pop r12",
-            "pop r11",
-            "pop r10",
-            "pop r9",
-            "pop r8",
-            "ret" // jump to kickoff
-        )
-    }
+    naked_asm!(
+        "mov rsp, rdi", // move stack to subroutine stack pointer
+        // restore all registers
+        "popf",
+        "pop rbp",
+        "pop rdi",
+        "pop rsi",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        "pop rax",
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+        "ret" // jump to kickoff
+    )
 }
 
 /// Low-level routine for switching to the next coroutine.
 /// `current_stack_ptr` is a pointer to `stack_ptr` of the current coroutine (where the rsp is saved).
 /// `next_stack` is the value of `stack_ptr` of the next coroutine (the new rsp value).
-#[naked]
+#[unsafe(naked)]
 unsafe extern "C" fn coroutine_switch(current_stack_ptr: *mut usize, next_stack: usize) {
-    unsafe {
-        naked_asm!(
-            // safe all registers
-            "push r8",
-            "push r9",
-            "push r10",
-            "push r11",
-            "push r12",
-            "push r13",
-            "push r14",
-            "push r15",
-            "push rax",
-            "push rbx",
-            "push rcx",
-            "push rdx",
-            "push rsi",
-            "push rdi",
-            "push rbp",
-            "pushf",
-            "mov [rdi], rsp", // save rsp to coroutine stack pointer
-            "mov rsp, rsi",   // move stack to next subroutine stack pointer
-            // restore all registers
-            "popf",
-            "pop rbp",
-            "pop rdi",
-            "pop rsi",
-            "pop rdx",
-            "pop rcx",
-            "pop rbx",
-            "pop rax",
-            "pop r15",
-            "pop r14",
-            "pop r13",
-            "pop r12",
-            "pop r11",
-            "pop r10",
-            "pop r9",
-            "pop r8",
-            "ret" // jump to kickoff
-        )
-    }
+    naked_asm!(
+        // safe all registers
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
+        "push r12",
+        "push r13",
+        "push r14",
+        "push r15",
+        "push rax",
+        "push rbx",
+        "push rcx",
+        "push rdx",
+        "push rsi",
+        "push rdi",
+        "push rbp",
+        "pushf",
+        "mov [rdi], rsp", // save rsp to coroutine stack pointer
+        "mov rsp, rsi",   // move stack to next subroutine stack pointer
+        // restore all registers
+        "popf",
+        "pop rbp",
+        "pop rdi",
+        "pop rsi",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        "pop rax",
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
+        "ret" // jump to kickoff
+    )
 }
 
 /// Represents a coroutine in the system.
