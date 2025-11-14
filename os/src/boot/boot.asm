@@ -12,7 +12,7 @@
 ;
 
 ; Comment out to boot in graphical mode
-;%define TEXT_MODE
+%define TEXT_MODE
 
 ; Load address of the kernel (1 MiB - Must be consistent with the linker script)
 KERNEL_START: equ 0x100000
@@ -217,6 +217,8 @@ _clear_bss:
    ;
    ; Hier muss Code eingefuegt werden
    ;
+   mov ax, 0x30
+   ltr ax
 
    ; Call startup with multiboot info address as parameter
     xor rax, rax
@@ -233,6 +235,14 @@ _tss_set_base_address:
 ;
 ; Hier muss Code eingefuegt werden
 ;
+    mov rax, _tss ; Get address of _tss
+    mov [ _gdt_tss_entry + 2 ], ax ; Write Base Address [15:00]
+    shr rax, 16
+    mov [ _gdt_tss_entry + 4 ], al ; Write Base Address [23:16]
+    shr rax, 8
+    mov [ _gdt_tss_entry + 7 ], al ; Write Base Address [31:24]
+    shr rax, 8
+    mov [ _gdt_tss_entry + 8 ], rax ; Write Base Address [63:32]
 ret
 
 
@@ -242,6 +252,8 @@ _tss_set_rsp0:
 ;
 ; Hier muss Code eingefuegt werden
 ;
+    mov rax, _tss ; Get address of _tss
+    mov [ rax + 4 ], rdi ; Set rsp0 (offset 4 in TSS)
 ret
 
 ; Get address of the TSS
@@ -251,12 +263,15 @@ _get_tss_address:
 
 [SECTION .data]
 
-; Global Descriptor Table (GDT) with 4 entries:
+; Global Descriptor Table (GDT) with 6 entries:
 ;
 ; 0: NULL descriptor (always required)
 ; 1: 32-Bit kernel code segment (only needed for booting)
 ; 2: 64-Bit kernel code segment
 ; 3: 64-Bit kernel data segment
+; 4: 64-Bit user code segment (Ring 3)
+; 5: 64-Bit user data segment (Ring 3)
+; 6: TSS Descriptor (16 Bytes)
 _gdt:
     ; NULL descriptor (always required)
     dw  0, 0, 0, 0
@@ -279,10 +294,33 @@ _gdt:
     dw  0x9200    ; Base  [16:23] = 0, data read/write, DPL = 0, present
     dw  0x00CF    ; Limit [16:19], granularity = 4096, 386, base [24:31]
 
+    ; 64-Bit user code segment (Ring 3)
+    dw  0xFFFF    ; Limit [00:15] = 4 GiB (0x100000 * 0x1000 = 4 GiB)
+    dw  0x0000    ; Base  [00:15] = 0
+    dw  0xFA00    ; Base  [16:23] = 0, code read/exec, DPL = 3, present
+    dw  0x00AF    ; Limit [16:19], granularity = 4096, 386, Long-Mode, base [24:31]
+
+    ; 64-Bit user data segment (Ring 3)
+    dw  0xFFFF    ; Limit [00:15] = 4 GiB (0x100000 * 0x1000 = 4 GiB)
+    dw  0x0000    ; Base  [00:15] = 0
+    dw  0xF200    ; Base  [16:23] = 0, data read/write, DPL = 3, present
+    dw  0x00CF    ; Limit [16:19], granularity = 4096, 386, base [24:31]
+
+    ; TSS Descriptor (16 Bytes)
+_gdt_tss_entry:
+    dw  0x0067    ; Limit [00:15] (104 bytes - 1 = 0x67)
+    dw  0x0000    ; Base [00:15] (set by _tss_set_base_address)
+    db  0x00      ; Base [23:16] (set by _tss_set_base_address)
+    db  0x89      ; Type (0x9 = 64-bit TSS), DPL = 0, present
+    db  0x00      ; Limit [19:16], granularity (0)
+    db  0x00      ; Base [31:24] (set by _tss_set_base_address)
+    dd  0x0000    ; Base [63:32] (set by _tss_set_base_address)
+    dd  0x0000    ; Reserved
+
 ; GDT descriptor for LGDT instruction
 _gdt_descriptor:
     align 16
-    dw  4 * 8 - 1 ; GDT limit = 31 (4 entries of 8 bytes each)
+    dw  6 * 8 + 16 - 1 ; GDT limit = 63 (6 entries of 8 bytes each, 1 entry of 16 bytes)
     dq  _gdt ; Address of GDT
 
 ; Address of the multiboot information structure is stored here during boot

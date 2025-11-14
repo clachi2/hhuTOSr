@@ -1,18 +1,27 @@
+use alloc::string::String;
+use alloc::vec::Vec;
 use crate::devices::cga::CGA;
 use crate::devices::{cga, pit};
 use crate::kernel::threads::scheduler::get_scheduler;
 use crate::kernel::threads::thread::Thread;
 
 pub fn thread_test() {
-    let kernel_thread = Thread::new_kernel_thread(kernel_test_thread);
-    let user_thread = Thread::new_user_thread(user_test_thread);
+    CGA.lock().clear();
+    let kernel_thread = Thread::new_kernel_thread(kernel_test_thread, Vec::new(), String::from("kernel_thread"));
+    let kernel_thread1 = Thread::new_kernel_thread(kernel_test_thread, Vec::new(), String::from("kernel_thread1"));
+    let user_thread = Thread::new_user_thread(user_test_thread, Vec::new(), String::from("user_thread"));
+    let user_thread1 = Thread::new_user_thread(user_test_thread, Vec::new(), String::from("user_thread1"));
+    let user_thread2 = Thread::new_user_thread(user_test_thread, Vec::new(), String::from("user_thread2"));
     let scheduler = get_scheduler();
     scheduler.ready(kernel_thread);
+    scheduler.ready(kernel_thread1);
     scheduler.ready(user_thread);
+    scheduler.ready(user_thread1);
+    scheduler.ready(user_thread2);
     scheduler.schedule();
 }
 
-fn kernel_test_thread() {
+fn kernel_test_thread(_args: &[String]) {
     let id = get_scheduler().get_active_tid();
 
     for i in 0..cga::CGA_COLUMNS {
@@ -26,7 +35,7 @@ fn kernel_test_thread() {
     }
 }
 
-fn user_test_thread() {
+fn user_test_thread(_args: &[String]) {
     let id = get_scheduler().get_active_tid();
     
     for i in 0..cga::CGA_COLUMNS {

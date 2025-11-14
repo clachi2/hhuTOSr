@@ -88,7 +88,8 @@ impl ISR for TimerISR {
         let current_time = SYSTEM_TIME.fetch_add(1, core::sync::atomic::Ordering::Relaxed);
 
         if current_time % self.interval_ms == 0 {
-            if !get_scheduler().is_locked() && !ALLOCATOR.is_locked() && !cga::CGA.is_queue_locked()
+            // if !get_scheduler().is_locked() && !ALLOCATOR.is_locked() && !cga::CGA.is_queue_locked() // TODO can be used again when cga is using mutex instead of spinlock for queue
+            if !get_scheduler().is_locked() && !ALLOCATOR.is_locked() && !cga::CGA.is_locked()
             {
                 if let Some(mut cga) = CGA.try_lock() {
                     let pos = cga.getpos();

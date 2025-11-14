@@ -110,7 +110,7 @@ impl Shell {
         wait: bool,
         name: &str,
     ) {
-        let program_thread = Thread::new(program, args, name.to_string());
+        let program_thread = Thread::new_kernel_thread(program, args, name.to_string());
         let id = program_thread.get_id();
         if is_graphic {
             get_lfb().lock().clear();

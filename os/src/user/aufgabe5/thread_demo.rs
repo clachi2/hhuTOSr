@@ -59,10 +59,10 @@ pub fn run() {
     cga::CGA.lock().clear();
     print!("Thread Demo:");
 
-    let thread1 = Thread::new(thread_entry, Vec::new(), String::from("Thread Demo 1"));
-    let thread2 = Thread::new(thread_entry, Vec::new(), String::from("Thread Demo 2"));
-    let thread3 = Thread::new(thread_entry, Vec::new(), String::from("Thread Demo 3"));
-    let thread_music = Thread::new(thread_music, Vec::new(), String::from("Thread Music"));
+    let thread1 = Thread::new_kernel_thread(thread_entry, Vec::new(), String::from("Thread Demo 1"));
+    let thread2 = Thread::new_kernel_thread(thread_entry, Vec::new(), String::from("Thread Demo 2"));
+    let thread3 = Thread::new_kernel_thread(thread_entry, Vec::new(), String::from("Thread Demo 3"));
+    let thread_music = Thread::new_kernel_thread(thread_music, Vec::new(), String::from("Thread Music"));
 
     scheduler.ready(Box::new(*thread1));
     scheduler.ready(Box::new(*thread2));

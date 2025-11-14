@@ -63,6 +63,7 @@ use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
 use crate::user::aufgabe7::spinner::spinner;
+use crate::user::aufgabe8::user_threads::thread_test;
 
 fn aufgabe1() {
     cga::CGA.lock().clear();
@@ -92,6 +93,11 @@ fn aufgabe4() {
 
 fn aufgabe5() {
     aufgabe5_thread_demo::run();
+    loop {}
+}
+
+fn aufgabe8() {
+    thread_test();
     loop {}
 }
 
@@ -149,8 +155,8 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                 );
 
                 let scheduler = get_scheduler();
-                let shell = Thread::new(shell_thread, Vec::new(), String::from("shell"));
-                let spinner = Thread::new(spinner, vec![String::from("250")], String::from("spinner"), );
+                let shell = Thread::new_kernel_thread(shell_thread, Vec::new(), String::from("shell"));
+                let spinner = Thread::new_kernel_thread(spinner, vec![String::from("250")], String::from("spinner"), );
                 scheduler.ready(shell);
                 scheduler.ready(spinner);
                 scheduler.schedule();
@@ -169,24 +175,16 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                 // --------------------
 
                 // ---- Aufgabe 5 ----
-                aufgabe5();
+                // aufgabe5();
+                // --------------------
+
+                // ---- Aufgabe 8 ----
+                aufgabe8();
                 // --------------------
             }
         }
     } else {
         // No framebuffer info available -> Probably CGA mode
-
-        // ---- Aufgabe 3 ----
-        // aufgabe3();
-        // --------------------
-
-        // ---- Aufgabe 4 ----
-        // aufgabe4();
-        // --------------------
-
-        // ---- Aufgabe 5 ----
-        // aufgabe5();
-        // --------------------
     }
 
     loop {}

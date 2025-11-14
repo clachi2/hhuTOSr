@@ -7,7 +7,6 @@
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
 use crate::consts;
-use crate::consts::STACK_SIZE;
 use crate::kernel::coroutines::coroutine::Coroutine;
 use crate::kernel::cpu;
 use crate::kernel::threads::scheduler;
@@ -18,7 +17,12 @@ use alloc::vec::Vec;
 use core::arch::naked_asm;
 use core::fmt::Display;
 use core::sync::atomic::AtomicUsize;
+use crate::consts::{STACK_ENTRY_SIZE, STACK_SIZE};
 use core::{fmt, ptr};
+
+unsafe extern "C" {
+    fn _tss_set_rsp0(rsp0: usize);
+}
 
 static THREAD_ID_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -57,7 +61,7 @@ unsafe extern "C" fn thread_start(stack_ptr: usize) {
 /// `current_stack_ptr` is a pointer to `stack_ptr` of the next coroutine (where the rsp is saved).
 /// `next_stack` is the value of `stack_ptr` of the next thread (the new rsp value).
 #[unsafe(naked)]
-unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: usize) {
+unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: usize, next_stack_end: usize) {
     naked_asm!(
         // safe all registers
         "push r8",
@@ -77,6 +81,11 @@ unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: us
         "push rbp",
         "pushf",
         "mov [rdi], rsp", // save rsp to coroutine stack pointer
+
+        // Update TSS rsp0 to 'next_stack_end' (third parameter)
+        "mov rdi, rdx", // rdx = next_stack_end
+        "call _tss_set_rsp0",
+
         "mov rsp, rsi",   // move stack to next subroutine stack pointer
         "call unlock_scheduler",
         // restore all registers
@@ -100,14 +109,25 @@ unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: us
     )
 }
 
+#[unsafe(naked)]
+unsafe extern "C" fn thread_user_start(stack_ptr: usize) {
+    naked_asm!(
+        "mov rsp, rdi", // Switch stack
+        "pop rdi",
+        "iretq" // Return to user mode
+    )
+}
+
 /// Represents a coroutine in the system.
-/// It contains the stack and the entry function.
+/// It contains the kernel and user stacks and the entry function.
 /// Threads must be registered in the scheduler and are run automatically
 /// once the scheduler is started.
 #[repr(C)]
 pub struct Thread {
     id: usize,
-    stack: Vec<u64>,  // Memory for the stack
+    is_kernel_thread: bool,
+    kernel_stack: Vec<u64>,
+    user_stack: Vec<u64>,
     stack_ptr: usize, // Pointer on the stack to the saved context
     entry: fn(&[String]),
     args: Vec<String>,
@@ -116,20 +136,27 @@ pub struct Thread {
 
 impl Thread {
     /// Create a new thread with the given entry function.
-    pub fn new(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
-        // Allocate memory for the stack and initialize it to zero
-        let mut stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
-        for _ in 0..stack.capacity() {
-            stack.push(0);
+    pub fn new_kernel_thread(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
+        // Allocate memory for the kernel stack and initialize it to zero
+        let mut kernel_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
+        for _ in 0..kernel_stack.capacity() {
+            kernel_stack.push(0);
+        }
+
+        let mut user_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
+        for _ in 0..user_stack.capacity() {
+            user_stack.push(0);
         }
 
         // Set the stack pointer to the top of the stack
-        let stack_ptr = ptr::from_ref(&stack[stack.capacity() - 1]) as usize;
+        let stack_ptr = ptr::from_ref(&kernel_stack[kernel_stack.capacity() - 1]) as usize;
 
         // Create a new thread object
         let mut thread = Box::new(Thread {
             id: next_id(),
-            stack,
+            is_kernel_thread: true,
+            kernel_stack,
+            user_stack,
             stack_ptr,
             entry,
             args,
@@ -137,7 +164,15 @@ impl Thread {
         });
 
         // Prepare the stack for the thread so it can be started via `thread_start()`
-        thread.prepare_stack();
+        thread.prepare_kernel_stack();
+        thread
+    }
+
+    pub fn new_user_thread(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
+        let mut thread = Self::new_kernel_thread(entry, args, name);
+
+        thread.is_kernel_thread = false;
+
         thread
     }
 
@@ -155,7 +190,11 @@ impl Thread {
     pub unsafe fn switch(current: *mut Thread, next: *mut Thread) {
         // kprintln!("Switching from thread {} to thread {}", (*current).id, (*next).id);
         unsafe {
-            thread_switch(&mut (*current).stack_ptr as *mut usize, (*next).stack_ptr);
+            let current = &mut *current;
+            let next = &*next;
+            let next_stack_end = Thread::get_top_of_stack(&next.kernel_stack);
+
+            thread_switch(&mut current.stack_ptr, next.stack_ptr, next_stack_end as usize);
         }
     }
 
@@ -173,38 +212,88 @@ impl Thread {
     /// to return to the 'kickoff' function with the thread itself as parameter.
     /// The prepared stack is used in 'thread_start' to start the first thread.
     /// Other threads are started by 'thread_switch' with the prepared stack.
-    fn prepare_stack(&mut self) {
-        let kickoff = Thread::kickoff as u64;
+    fn prepare_kernel_stack(&mut self) {
+        let kickoff = Thread::kickoff_kernel_thread as u64;
         let thread = ptr::from_mut(self) as u64;
-        let length = self.stack.len();
+        let length = self.kernel_stack.len();
+        let kernel_stack_top = Self::get_top_of_stack(&self.kernel_stack);
 
-        self.stack[length - 1] = 0x131155; // Dummy return address
-        self.stack[length - 2] = kickoff; // Address of 'kickoff'
-        self.stack[length - 3] = 0; // r8
-        self.stack[length - 4] = 0; // r9
-        self.stack[length - 5] = 0; // r10
-        self.stack[length - 6] = 0; // r11
-        self.stack[length - 7] = 0; // r12
-        self.stack[length - 8] = 0; // r13
-        self.stack[length - 9] = 0; // r14
-        self.stack[length - 10] = 0; // r15
-        self.stack[length - 11] = 0; // rax
-        self.stack[length - 12] = 0; // rbx
-        self.stack[length - 13] = 0; // rcx
-        self.stack[length - 14] = 0; // rdx
-        self.stack[length - 15] = 0; // rsi
-        self.stack[length - 16] = thread; // rdi -> First parameter for 'kickoff'
-        self.stack[length - 17] = 0; // rbp
-        self.stack[length - 18] = 0x2; // rflags (IE = 0); interrupts disabled
+        self.kernel_stack[length - 1] = 0x131155; // Dummy return address
+        self.kernel_stack[length - 2] = kickoff; // Address of 'kickoff'
+        self.kernel_stack[length - 3] = 0; // r8
+        self.kernel_stack[length - 4] = 0; // r9
+        self.kernel_stack[length - 5] = 0; // r10
+        self.kernel_stack[length - 6] = 0; // r11
+        self.kernel_stack[length - 7] = 0; // r12
+        self.kernel_stack[length - 8] = 0; // r13
+        self.kernel_stack[length - 9] = 0; // r14
+        self.kernel_stack[length - 10] = 0; // r15
+        self.kernel_stack[length - 11] = 0; // rax
+        self.kernel_stack[length - 12] = 0; // rbx
+        self.kernel_stack[length - 13] = 0; // rcx
+        self.kernel_stack[length - 14] = 0; // rdx
+        self.kernel_stack[length - 15] = 0; // rsi
+        self.kernel_stack[length - 16] = thread; // rdi -> First parameter for 'kickoff'
+        self.kernel_stack[length - 17] = 0; // rbp
+        self.kernel_stack[length - 18] = 0x2; // rflags (IE = 0); interrupts disabled
 
-        self.stack_ptr = self.stack_ptr - (consts::STACK_ENTRY_SIZE * 17);
+        self.stack_ptr = kernel_stack_top as usize - (STACK_ENTRY_SIZE * 18);
+    }
+
+    /// Switch this thread from Ring 0 to Ring 3.
+    /// For this, the kernel stack is prepared in a way that an 'iretq' instruction
+    /// switches to user mode (Ring 3) and the user stack is used. If this function works correctly,
+    /// the thread continues in user mode in the function 'kickoff_user_thread'.
+    fn switch_to_usermode(&mut self) {
+        let user_stack_top = Self::get_top_of_stack(&self.user_stack) as u64;
+        let user_kickoff_addr = Thread::kickoff_user_thread as u64;
+        let self_ptr = ptr::from_mut(self) as u64;
+        let kernel_stack_top_addr = Self::get_top_of_stack(&self.kernel_stack) as usize;
+        let len = self.kernel_stack.len();
+
+        self.kernel_stack[len - 1] = (5 << 3) | 3; // SS (User Data Selector) -> index 5, RPL=3
+        self.kernel_stack[len - 2] = user_stack_top; // RSP (User Stack Pointer)
+        self.kernel_stack[len - 3] = 0x200; // RFLAGS (Bit 9 = Interrupt Flag set)
+        self.kernel_stack[len - 4] = (4 << 3) | 3; // CS (User Code Selector) -> index 4, RPL=3
+        self.kernel_stack[len - 5] = user_kickoff_addr;
+        self.kernel_stack[len - 6] = self_ptr; // RDI
+
+        let stack_ptr = kernel_stack_top_addr - (6 * STACK_ENTRY_SIZE);
+        unsafe {
+            thread_user_start(stack_ptr);
+        }
     }
 
     /// Called indirectly by using the prepared stack in 'thread_start' and 'thread_switch'.
-    fn kickoff(&self) {
-        cpu::enable_int();
-        (self.entry)(&self.args);
+    fn kickoff_kernel_thread(&mut self) {
+        // Set TSS rsp0 to the top of the kernel stack of this thread
+        unsafe {
+            let rsp0 = Self::get_top_of_stack(&self.kernel_stack);
+            _tss_set_rsp0(rsp0 as usize);
+        }
+
+        if self.is_kernel_thread {
+            cpu::enable_int(); // interrupts are disabled during thread start
+            ((*self).entry)(&self.args);
+        } else {
+            self.switch_to_usermode();
+        }
+
         get_scheduler().exit();
+    }
+
+    /// Called indirectly by using the prepared stack in 'switch_to_usermode'.
+    /// At this point, the thread is in user mode (Ring 3) and its entry function is called.
+    fn kickoff_user_thread(&self) {
+        (self.entry)(&self.args);
+        loop {}
+    }
+
+    /// Get a pointer to the top of the given stack.
+    fn get_top_of_stack(stack: &Vec<u64>) -> *const u64 {
+        unsafe {
+            ptr::from_ref(&stack[stack.len() - 1]).offset(1)
+        }
     }
 }
 

@@ -65,7 +65,7 @@ impl Scheduler {
     /// and an idle thread as the active thread.
     pub fn new() -> Self {
         let state = SchedulerState {
-            active_thread: Some(Thread::new(idle_thread, Vec::new(), String::from("idle"))),
+            active_thread: Some(Thread::new_kernel_thread(idle_thread, Vec::new(), String::from("idle"))),
             ready_queue: LinkedQueue::new(),
             alive_threads: Vec::new(),
         };

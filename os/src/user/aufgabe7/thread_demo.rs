@@ -73,7 +73,7 @@ pub fn thread_demo(args: &[String]) {
 
     let mut ids = Vec::new();
     for i in 0..num_threads {
-        let thread = Thread::new(
+        let thread = Thread::new_kernel_thread(
             thread_entry,
             vec![format!("{}", i)],
             format!("Thread Demo {}", i + 1),
