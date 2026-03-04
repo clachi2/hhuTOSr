@@ -64,6 +64,7 @@ use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
 use crate::user::aufgabe7::spinner::spinner;
 use crate::user::aufgabe8::user_threads::thread_test;
+use crate::user::aufgabe9::syscall_demo::syscall_test;
 
 fn aufgabe1() {
     cga::CGA.lock().clear();
@@ -98,6 +99,11 @@ fn aufgabe5() {
 
 fn aufgabe8() {
     thread_test();
+    loop {}
+}
+
+fn aufgabe9() {
+    syscall_test();
     loop {}
 }
 
@@ -179,7 +185,11 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                 // --------------------
 
                 // ---- Aufgabe 8 ----
-                aufgabe8();
+                // aufgabe8();
+                // --------------------
+
+                // ---- Aufgabe 9 ----
+                aufgabe9();
                 // --------------------
             }
         }
