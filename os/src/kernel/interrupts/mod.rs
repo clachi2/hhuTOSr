@@ -1,7 +1,8 @@
-pub mod pic;
+pub mod base_interrupts;
 pub mod idt;
 pub mod intdispatcher;
 pub mod isr;
+pub mod pic;
 
 #[derive(Debug)]
 #[repr(C, packed)]

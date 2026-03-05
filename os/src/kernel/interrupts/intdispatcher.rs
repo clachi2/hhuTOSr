@@ -21,6 +21,7 @@ use alloc::{boxed::Box, vec, vec::Vec};
 use spin::Mutex;
 
 /// Enumeration of all standardized interrupt vectors.
+#[derive(Debug)]
 pub enum InterruptVector {
     // CPU exceptions
     DivisionByZero = 0,

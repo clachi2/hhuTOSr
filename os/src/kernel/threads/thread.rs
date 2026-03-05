@@ -19,6 +19,7 @@ use core::fmt::Display;
 use core::sync::atomic::AtomicUsize;
 use crate::consts::{STACK_ENTRY_SIZE, STACK_SIZE};
 use core::{fmt, ptr};
+use crate::kernel::syscalls::user_api::usr_thread_exit;
 
 unsafe extern "C" {
     fn _tss_set_rsp0(rsp0: usize);
@@ -286,7 +287,7 @@ impl Thread {
     /// At this point, the thread is in user mode (Ring 3) and its entry function is called.
     fn kickoff_user_thread(&self) {
         (self.entry)(&self.args);
-        loop {}
+        usr_thread_exit();
     }
 
     /// Get a pointer to the top of the given stack.

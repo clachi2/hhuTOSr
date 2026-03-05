@@ -3,6 +3,7 @@ use core::ptr;
 use spin::once::Once;
 use crate::kernel::interrupts::intdispatcher::int_disp;
 use crate::kernel::interrupts::InterruptStackFrame;
+use crate::kernel::syscalls::syscall_dispatcher::syscall_disp;
 
 /// Static instance of the Interrupt Descriptor Table (IDT).
 /// Wrapped inside a Once, because Idt::new() is not const.
@@ -106,9 +107,14 @@ impl IdtEntry {
     /// Create a new IDT entry for a trap gate at the given offset.
     /// This is used for system calls, which should be accessible from user mode (DPL=3).
     const fn new_trap_gate(offset: u64) -> IdtEntry {
-        /*
-         * Hier muss Code eingefuegt werden.
-         */
+        IdtEntry {
+            offset_low: (offset & 0xffff) as u16,
+            selector: 2 * 8, // Second entry in the GDT (kernel code segment)
+            options: 0xef00, // Present, DPL=3, 64-bit trap gate
+            offset_mid: ((offset >> 16) & 0xffff) as u16,
+            offset_high: ((offset >> 32) & 0xffffffffff) as u32,
+            reserved: 0,
+        }
     }
 
     /// Create a new IDT entry for an interrupt handler function.
@@ -295,7 +301,7 @@ impl Idt {
                 interrupt_handler!(0x7d, int_disp),
                 interrupt_handler!(0x7e, int_disp),
                 interrupt_handler!(0x7f, int_disp),
-                interrupt_handler!(0x80, int_disp),
+                IdtEntry::syscall_gate(syscall_disp),
                 interrupt_handler!(0x81, int_disp),
                 interrupt_handler!(0x82, int_disp),
                 interrupt_handler!(0x83, int_disp),

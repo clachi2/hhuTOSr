@@ -13,7 +13,10 @@
  */
 
 use core::arch::{naked_asm};
+use crate::kernel::syscalls::functions::functions::sys_get_system_time;
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
+use crate::kernel::syscalls::functions::io::{sys_get_char, sys_print};
+use crate::kernel::syscalls::functions::thread::{sys_thread_exit, sys_thread_get_id, sys_thread_yield};
 use crate::kernel::syscalls::user_api::SyscallFunction;
 
 /// Global syscall function table.
@@ -30,7 +33,13 @@ impl SyscallFunctionTable {
     pub const fn new() -> SyscallFunctionTable {
         SyscallFunctionTable {
             table: [
-                sys_hello_world as *const u64
+                sys_hello_world as *const u64,
+                sys_thread_yield as *const u64,
+                sys_thread_exit as *const u64,
+                sys_thread_get_id as *const u64,
+                sys_get_system_time as *const u64,
+                sys_print as *const u64,
+                sys_get_char as *const u64,
             ],
         }
     }
@@ -50,9 +59,21 @@ pub extern "C" fn syscall_disp() {
     naked_asm!(
         // Save all registers (except rax, which contains the syscall number)
 
-        /*
-         * Hier muss Code eingefuegt werden
-         */
+        "push r8",
+        "push r9",
+        "push r10",
+        "push r11",
+        "push r12",
+        "push r13",
+        "push r14",
+        "push r15",
+        // "push rax", // dont save rax, since its syscall number
+        "push rbx",
+        "push rcx",
+        "push rdx",
+        "push rsi",
+        "push rdi",
+        "push rbp",
 
         // Call syscall handler (or syscall_abort for an invalid syscall number)
         "cmp rax, {NUM_SYSCALLS}",
@@ -61,9 +82,21 @@ pub extern "C" fn syscall_disp() {
 
         // Restore all registers (except rax)
 
-        /*
-         * Hier muss Code eingefuegt werden
-         */
+        "pop rbp",
+        "pop rdi",
+        "pop rsi",
+        "pop rdx",
+        "pop rcx",
+        "pop rbx",
+        // "pop rax", // dont restore rax, since its syscall number
+        "pop r15",
+        "pop r14",
+        "pop r13",
+        "pop r12",
+        "pop r11",
+        "pop r10",
+        "pop r9",
+        "pop r8",
 
         // Return from interrupt
         "iretq",

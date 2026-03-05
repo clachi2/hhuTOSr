@@ -62,6 +62,7 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
+use crate::kernel::interrupts::base_interrupts::init_base_interrupts;
 use crate::user::aufgabe7::spinner::spinner;
 use crate::user::aufgabe8::user_threads::thread_test;
 use crate::user::aufgabe9::syscall_demo::syscall_test;
@@ -129,6 +130,9 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     pic::PIC.lock().init();
     println!("initializing PIC... done");
     kprintln!("initializing PIC... done");
+    init_base_interrupts();
+    println!("initializing base interrupts... done");
+    kprintln!("initializing base interrupts... done");
     keyboard::plugin();
     println!("initializing keyboard... done");
     kprintln!("initializing keyboard... done");
