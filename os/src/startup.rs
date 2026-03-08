@@ -63,6 +63,7 @@ use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
 use crate::kernel::interrupts::base_interrupts::init_base_interrupts;
+use crate::user::aufgabe10::phys_allocator_test::{test_phys_allocator};
 use crate::user::aufgabe7::spinner::spinner;
 use crate::user::aufgabe8::user_threads::thread_test;
 use crate::user::aufgabe9::syscall_demo::syscall_test;
@@ -118,6 +119,13 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     // aufgabe2();
     // --------------------
 
+    // Copy multiboot into on stack, because it lies in physical memory that might get reused after initializing the physical memory allocator
+    let multiboot_info = *multiboot_info;
+
+    multiboot_info.init_phys_memory_allocator();
+    println!("initializing physical memory allocator... done");
+    kprintln!("initializing physical memory allocator... done");
+    test_phys_allocator();
     allocator::init();
     println!("initializing allocator... done");
     kprintln!("initializing allocator... done");

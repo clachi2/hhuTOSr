@@ -53,21 +53,31 @@ pub struct LinkedListAllocator {
     head: ListNode,
     heap_start: usize,
     heap_end: usize,
+    initialized: bool,
 }
 
 impl LinkedListAllocator {
     /// Create a new empty linked list allocator.
-    pub const fn new(heap_start: usize, heap_size: usize) -> LinkedListAllocator {
+    pub const fn new() -> LinkedListAllocator {
         LinkedListAllocator {
-            head: ListNode::new(heap_size),
-            heap_start,
-            heap_end: heap_start + heap_size,
+            head: ListNode::new(0),
+            heap_start: 0,
+            heap_end: 0,
+            initialized: false,
         }
     }
 
     /// Initialize the allocator with the heap bounds given in the constructor.
-    pub unsafe fn init(&mut self) {
-        unsafe { self.add_free_block(self.heap_start, self.head.size) }
+    pub unsafe fn init(&mut self, heap_start: usize, heap_size: usize) {
+        assert!(!self.initialized);
+        self.heap_start = heap_start;
+        self.heap_end = heap_start + heap_size;
+        self.head = ListNode::new(0);
+        self.initialized = true;
+
+        unsafe {
+            self.add_free_block(heap_start, heap_size);
+        }
     }
 
     /// Adds the given free memory block 'addr' to the front of the free list.
@@ -161,6 +171,7 @@ impl LinkedListAllocator {
     }
 
     pub unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
+        assert!(self.initialized, "heap allocator used before init");
         // kprint!(
         //     "list-alloc: size={}, align={}",
         //     layout.size(),
@@ -189,6 +200,7 @@ impl LinkedListAllocator {
     }
 
     pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
+        assert!(self.initialized, "heap allocator used before init");
         // kprintln!("list-dealloc: size={}, align={}; not supported", layout.size(), layout.align());
         // println!(
         //     "dealloc size={}, align={}, addr={:#x}",

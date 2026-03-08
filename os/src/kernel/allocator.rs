@@ -22,23 +22,40 @@ use crate::kernel::allocator::list::LinkedListAllocator;
 use alloc::alloc::Layout;
 // use spin::{Mutex, MutexGuard};
 use crate::library::mutex::{Mutex, MutexGuard};
+use crate::consts::{HEAP_START, HEAP_SIZE, PAGE_FRAME_SIZE};
+use crate::kernel::paging::frames::FRAME_ALLOCATOR;
 
 pub mod bump;
 pub mod list;
-
-const HEAP_START: usize = 0x500000;
-const HEAP_SIZE: usize = 1024 * 1024 * 10 * 10;
 
 // Define the allocator (which implements the 'GlobalAlloc' trait)
 #[global_allocator]
 // static ALLOCATOR: Locked<BumpAllocator> = Locked::new(BumpAllocator::new(HEAP_START, HEAP_SIZE));
 pub static ALLOCATOR: Locked<LinkedListAllocator> =
-    Locked::new(LinkedListAllocator::new(HEAP_START, HEAP_SIZE));
+    Locked::new(LinkedListAllocator::new());
 
 /// Initialize the heap allocator.
 pub fn init() {
+    let num_frames = HEAP_SIZE.div_ceil(PAGE_FRAME_SIZE);
+
+    let heap_start = unsafe {
+        FRAME_ALLOCATOR
+            .lock()
+            .alloc_block(num_frames)
+            .expect("failed to alloc heap")
+            .raw() as usize
+    };
+
+    kprintln!(
+        "kernel heap: start=0x{:x}, size={} bytes ({} frames)",
+        heap_start,
+        HEAP_SIZE,
+        num_frames
+    );
+    FRAME_ALLOCATOR.lock().dump_free_list();
+
     unsafe {
-        ALLOCATOR.lock().init();
+        ALLOCATOR.lock().init(heap_start, HEAP_SIZE);
     }
 }
 
