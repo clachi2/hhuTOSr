@@ -119,15 +119,22 @@ impl PfListNode {
 /// A physical frame allocator that uses a linked list to manage free memory blocks.
 /// Memory blocks are always aligned to PAGE_FRAME_SIZE (4096 bytes).
 pub struct PfListAllocator {
-    head: PfListNode
+    head: PfListNode,
+    max_addr: PhysAddr
 }
 
 impl PfListAllocator {
     /// Create a new empty physical frame list allocator.
     pub const fn new() -> PfListAllocator {
         PfListAllocator {
-            head: PfListNode::new(0)
+            head: PfListNode::new(0),
+            max_addr: PhysAddr::new(0)
         }
+    }
+
+    /// Get the maximum physical address ever inserted into the allocator via `free_block()`.
+    pub fn get_max_phys_addr(&self) -> PhysAddr {
+        self.max_addr
     }
 
     /// Try to allocate a block of 'num_frames' physical frames.
@@ -202,7 +209,7 @@ impl PfListAllocator {
             prev.next = Some(&mut *node_ptr);
         }
 
-        // merge if adjacent (1. sucessor, 2. predecessor)
+        // merge if adjacent (1. successor, 2. predecessor)
         {
             let this = prev.next.as_mut().unwrap();
             let merge_next = match this.next.as_ref() {
