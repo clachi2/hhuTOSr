@@ -1,6 +1,7 @@
 use core::arch::asm;
 use core::ptr;
 use spin::once::Once;
+use crate::kernel::interrupts::base_interrupts::{division_by_zero_handler, general_protection_fault_handler, page_fault_handler};
 use crate::kernel::interrupts::intdispatcher::int_disp;
 use crate::kernel::interrupts::InterruptStackFrame;
 use crate::kernel::syscalls::syscall_dispatcher::syscall_disp;
@@ -54,39 +55,6 @@ impl IdtDescriptor {
         }
     }
 }
-
-// impl IdtEntry {
-//     /// Create a new IDT entry for an interrupt handler at the given offset.
-//     /// Each entry has the same selector and options:
-//     /// The selector is the second entry in the GDT (kernel code segment) -> 2 * 8 = 16.
-//     /// The options are always 'Present', 'DPL=0' and '64-bit interrupt gate'.
-//     const fn new(offset: u64) -> IdtEntry {
-//
-//         IdtEntry {
-//             offset_low: (offset & 0xffff) as u16,
-//             selector: 0x10, // 16 = 2 * 8, GDT entry for kernel code segment
-//             options: 0b1000111000000000, // Present, DPL=0, 64-bit interrupt gate
-//             offset_mid: ((offset >> 16) & 0xffff) as u16,
-//             offset_high: (offset >> 32) as u32,
-//             reserved: 0,
-//         }
-//
-//     }
-//
-//     /// Create a new IDT entry for an interrupt handler function.
-//     /// The function must be marked as 'extern "x86-interrupt"'.
-//     pub fn without_error_code(handler: extern "x86-interrupt" fn(InterruptStackFrame)) -> IdtEntry {
-//         IdtEntry::new(handler as u64)
-//     }
-//
-//     /// Create a new IDT entry for an interrupt handler function with an error code.
-//     /// The function must be marked as 'extern "x86-interrupt"'.
-//     /// This is only used for some CPU exceptions (e.g. Page Faults).
-//     /// See the OSDev wiki for a full list of exceptions: https://wiki.osdev.org/Exceptions
-//     pub fn with_error_code(handler: extern "x86-interrupt" fn(InterruptStackFrame, error_code: u64)) -> IdtEntry {
-//         IdtEntry::new(handler as u64)
-//     }
-// }
 
 impl IdtEntry {
     /// Create a new IDT entry for an interrupt handler at the given offset.
@@ -173,7 +141,7 @@ impl Idt {
     pub fn new() -> Idt {
         Idt {
             entries: [
-                interrupt_handler!(0x00, int_disp),
+                interrupt_handler!(0x00, division_by_zero_handler),
                 interrupt_handler!(0x01, int_disp),
                 interrupt_handler!(0x02, int_disp),
                 interrupt_handler!(0x03, int_disp),
@@ -186,8 +154,8 @@ impl Idt {
                 interrupt_handler!(0x0a, int_disp),
                 interrupt_handler!(0x0b, int_disp),
                 interrupt_handler!(0x0c, int_disp),
-                interrupt_handler!(0x0d, int_disp),
-                interrupt_handler!(0x0e, int_disp),
+                interrupt_handler!(0x0d, general_protection_fault_handler),
+                interrupt_handler!(0x0e, page_fault_handler),
                 interrupt_handler!(0x0f, int_disp),
                 interrupt_handler!(0x10, int_disp),
                 interrupt_handler!(0x11, int_disp),

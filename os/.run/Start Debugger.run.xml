@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Start Debugger" type="RsRemoteRunConfiguration" debuggerKind="LLDB" remoteCommand="localhost:1234" symbolFile="$PROJECT_DIR$/os/target/hhu_tosr/debug/kernel.bin" sysroot="">
+  <configuration default="false" name="Start Debugger" type="RsRemoteRunConfiguration" debuggerKind="LLDB" remoteCommand="connect://localhost:1234" symbolFile="$PROJECT_DIR$/os/target/hhu_tosr/debug/kernel.bin" sysroot="">
     <method v="2" />
   </configuration>
 </component>

@@ -21,6 +21,9 @@ pub enum SyscallFunction {
     ThreadGetId,
     GetSystemTime,
     Print,
+    Println,
+    Kprint,
+    Kprintln,
     GetChar,
     NumSyscalls, // Last entry to count number of syscalls
 }
@@ -49,6 +52,30 @@ pub fn usr_get_system_time() -> usize {
 pub fn usr_print(msg: &str) {
     syscall2(
         SyscallFunction::Print,
+        msg.as_ptr() as u64,
+        msg.len() as u64,
+    );
+}
+
+pub fn usr_println(msg: &str) {
+    syscall2(
+        SyscallFunction::Println,
+        msg.as_ptr() as u64,
+        msg.len() as u64,
+    );
+}
+
+pub fn usr_kprint(msg: &str) {
+    syscall2(
+        SyscallFunction::Kprint,
+        msg.as_ptr() as u64,
+        msg.len() as u64,
+    );
+}
+
+pub fn usr_kprintln(msg: &str) {
+    syscall2(
+        SyscallFunction::Kprintln,
         msg.as_ptr() as u64,
         msg.len() as u64,
     );

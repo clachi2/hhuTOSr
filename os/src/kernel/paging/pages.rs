@@ -5,7 +5,7 @@ use crate::kernel::paging::frames::{PhysAddr, FRAME_ALLOCATOR};
 const PAGE_TABLE_ENTRIES: usize = 512;
 
 bitflags::bitflags! {
-    #[derive(Debug)]
+    #[derive(Debug, Clone, Copy)]
     pub struct PageFlags: u64 {
         const PRESENT = 1 << 0;
         const WRITEABLE = 1 << 1;
@@ -24,12 +24,14 @@ impl PageFlags {
         /*
          * Hier muss Code eingefuegt werden
          */
+        PageFlags::PRESENT | PageFlags::WRITEABLE | PageFlags::USER // TODO later remove USER flag
     }
 
     fn user_flags() -> Self {
         /*
          * Hier muss Code eingefuegt werden
          */
+        PageFlags::PRESENT | PageFlags::WRITEABLE | PageFlags::USER
     }
 }
 
@@ -86,9 +88,63 @@ impl PageTable {
     /// (virt_addr == phys_addr). Otherwise, new physical frames will be allocated
     /// for the mapping, using the frame allocator.
     fn map(&mut self, virt_addr: u64, num_pages: usize, kernel: bool) -> usize {
-        /*
-         * Hier muss Code eingefuegt werden
-         */
+        let mut mapped_pages = 0;
+        let target_flags = if kernel { PageFlags::kernel_flags() } else { PageFlags::user_flags() };
+
+        // flags for intermediate directory tables
+        let dir_flags = PageFlags::PRESENT | PageFlags::WRITEABLE | PageFlags::USER;
+
+        for i in 0..num_pages {
+            let v_addr = virt_addr + (i * PAGE_SIZE) as u64;
+
+            // leave addr 0 unmapped to catch null pointer access
+            if v_addr == 0 {
+                continue;
+            }
+
+            let pml4_index = ((v_addr >> 39) & 0x1FF) as usize;
+            let pdpt_index = ((v_addr >> 30) & 0x1FF) as usize;
+            let pd_index = ((v_addr >> 21) & 0x1FF) as usize;
+            let pt_index = ((v_addr >> 12) & 0x1FF) as usize;
+
+            // PML4 (level 4)
+            let pml4_entry = &mut self.entries[pml4_index];
+            if !pml4_entry.get_flags().contains(PageFlags::PRESENT) {
+                let frame = unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PML4") };
+                pml4_entry.set(frame, dir_flags);
+            }
+            let pdpt = unsafe { &mut *pml4_entry.get_addr().as_mut_ptr::<PageTable>() };
+
+            // PDPT (level 3)
+            let pdpt_entry = &mut pdpt.entries[pdpt_index];
+            if !pdpt_entry.get_flags().contains(PageFlags::PRESENT) {
+                let frame = unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PDPT") };
+                pdpt_entry.set(frame, dir_flags);
+            }
+            let pd = unsafe { &mut *pdpt_entry.get_addr().as_mut_ptr::<PageTable>() };
+
+            // PD (level 2)
+            let pd_entry = &mut pd.entries[pd_index];
+            if !pd_entry.get_flags().contains(PageFlags::PRESENT) {
+                let frame = unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PD") };
+                pd_entry.set(frame, dir_flags);
+            }
+            let pt = unsafe { &mut *pd_entry.get_addr().as_mut_ptr::<PageTable>() };
+
+            // PT (level 1)
+            let pt_entry = &mut pt.entries[pt_index];
+            let phys_addr = if kernel {
+                // 1:1 mapping
+                PhysAddr::new(v_addr)
+            } else {
+                unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PT allocation") }
+            };
+
+            pt_entry.set(phys_addr, target_flags);
+            mapped_pages += 1;
+        }
+
+        mapped_pages
     }
 }
 
@@ -131,7 +187,8 @@ pub fn init_kernel_tables() -> &'static mut PageTable {
 }
 
 pub unsafe fn map_user_stack(pml4_table: &mut PageTable) -> *mut u8 {
-    /*
-     * Hier muss Code eingefuegt werden
-     */
+    let num_pages = STACK_SIZE / PAGE_SIZE;
+    let virt_addr = USER_STACK_VIRT_START as u64;
+    pml4_table.map(virt_addr, num_pages, false);
+    virt_addr as *mut u8
 }

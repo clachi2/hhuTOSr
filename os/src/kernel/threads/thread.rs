@@ -19,6 +19,8 @@ use core::fmt::Display;
 use core::sync::atomic::AtomicUsize;
 use crate::consts::{STACK_ENTRY_SIZE, STACK_SIZE};
 use core::{fmt, ptr};
+use crate::kernel::paging::pages;
+use crate::kernel::paging::pages::PageTable;
 use crate::kernel::syscalls::user_api::usr_thread_exit;
 
 unsafe extern "C" {
@@ -62,7 +64,7 @@ unsafe extern "C" fn thread_start(stack_ptr: usize) {
 /// `current_stack_ptr` is a pointer to `stack_ptr` of the next coroutine (where the rsp is saved).
 /// `next_stack` is the value of `stack_ptr` of the next thread (the new rsp value).
 #[unsafe(naked)]
-unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: usize, next_stack_end: usize) {
+unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: usize, next_stack_end: usize, next_pml4: usize) {
     naked_asm!(
         // safe all registers
         "push r8",
@@ -86,6 +88,8 @@ unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: us
         // Update TSS rsp0 to 'next_stack_end' (third parameter)
         "mov rdi, rdx", // rdx = next_stack_end
         "call _tss_set_rsp0",
+
+        "mov cr3, rcx", // load new address space (fourth parameter)
 
         "mov rsp, rsi",   // move stack to next subroutine stack pointer
         "call unlock_scheduler",
@@ -130,6 +134,7 @@ pub struct Thread {
     kernel_stack: Vec<u64>,
     user_stack: Vec<u64>,
     stack_ptr: usize, // Pointer on the stack to the saved context
+    pml4: &'static mut PageTable,
     entry: fn(&[String]),
     args: Vec<String>,
     name: String,
@@ -144,13 +149,16 @@ impl Thread {
             kernel_stack.push(0);
         }
 
-        let mut user_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
-        for _ in 0..user_stack.capacity() {
-            user_stack.push(0);
-        }
+        let user_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
+        // for _ in 0..user_stack.capacity() {
+        //     user_stack.push(0);
+        // }
 
         // Set the stack pointer to the top of the stack
         let stack_ptr = ptr::from_ref(&kernel_stack[kernel_stack.capacity() - 1]) as usize;
+
+        // own address space
+        let pml4 = pages::init_kernel_tables();
 
         // Create a new thread object
         let mut thread = Box::new(Thread {
@@ -159,6 +167,7 @@ impl Thread {
             kernel_stack,
             user_stack,
             stack_ptr,
+            pml4,
             entry,
             args,
             name,
@@ -174,6 +183,12 @@ impl Thread {
 
         thread.is_kernel_thread = false;
 
+        // overwrite empty vector
+        let user_stack_ptr = unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
+        thread.user_stack = unsafe {
+            Vec::from_raw_parts(user_stack_ptr, STACK_SIZE / 8, STACK_SIZE / 8)
+        };
+
         thread
     }
 
@@ -182,6 +197,7 @@ impl Thread {
     /// The scheduler does further thread switching via `switch()`.
     pub fn start(&mut self) {
         unsafe {
+            pages::write_cr3(self.pml4);
             thread_start(self.stack_ptr);
         }
     }
@@ -194,8 +210,9 @@ impl Thread {
             let current = &mut *current;
             let next = &*next;
             let next_stack_end = Thread::get_top_of_stack(&next.kernel_stack);
+            let next_pml4_ptr = ptr::from_ref(next.pml4) as usize;
 
-            thread_switch(&mut current.stack_ptr, next.stack_ptr, next_stack_end as usize);
+            thread_switch(&mut current.stack_ptr, next.stack_ptr, next_stack_end as usize, next_pml4_ptr);
         }
     }
 
@@ -301,5 +318,15 @@ impl Thread {
 impl Display for Thread {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, \'{}\')", self.id, self.name)
+    }
+}
+
+impl Drop for Thread {
+    fn drop(&mut self) {
+        if !self.is_kernel_thread {
+            // Take ownership of the Vec and "forget" it so it doesn't deallocate
+            let vec = core::mem::take(&mut self.user_stack);
+            core::mem::forget(vec);
+        }
     }
 }

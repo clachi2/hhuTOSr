@@ -22,7 +22,7 @@ use crate::kernel::allocator::list::LinkedListAllocator;
 use alloc::alloc::Layout;
 // use spin::{Mutex, MutexGuard};
 use crate::library::mutex::{Mutex, MutexGuard};
-use crate::consts::{HEAP_START, HEAP_SIZE, PAGE_FRAME_SIZE};
+use crate::consts::{HEAP_SIZE, PAGE_FRAME_SIZE};
 use crate::kernel::paging::frames::FRAME_ALLOCATOR;
 
 pub mod bump;

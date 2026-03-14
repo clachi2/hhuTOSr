@@ -189,6 +189,10 @@ impl PfListAllocator {
         assert!(num_frames > 0);
         assert_eq!(addr.raw() % PAGE_FRAME_SIZE as u64, 0);
         let size_bytes = num_frames * PAGE_FRAME_SIZE;
+        let block_end = addr.raw() + size_bytes as u64;
+        if block_end > self.max_addr.raw() {
+            self.max_addr = PhysAddr::new(block_end);
+        }
 
         // find predecessor
         let mut prev = &mut self.head;
@@ -217,7 +221,7 @@ impl PfListAllocator {
                 None => false,
             };
             if merge_next {
-                let mut next = this.next.take().unwrap();
+                let next = this.next.take().unwrap();
                 this.size += next.size;
                 this.next = next.next.take();
             }
@@ -228,7 +232,7 @@ impl PfListAllocator {
                 prev.end_addr() == this_start
             };
             if can_merge_prev {
-                let mut this = prev.next.take().unwrap();
+                let this = prev.next.take().unwrap();
                 prev.size += this.size;
                 prev.next = this.next.take();
             }

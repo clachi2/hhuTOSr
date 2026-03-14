@@ -62,8 +62,9 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
-use crate::kernel::interrupts::base_interrupts::init_base_interrupts;
+use crate::kernel::paging::pages;
 use crate::user::aufgabe10::phys_allocator_test::{test_phys_allocator};
+use crate::user::aufgabe11::pages_test::aufgabe11_test;
 use crate::user::aufgabe7::spinner::spinner;
 use crate::user::aufgabe8::user_threads::thread_test;
 use crate::user::aufgabe9::syscall_demo::syscall_test;
@@ -109,6 +110,18 @@ fn aufgabe9() {
     loop {}
 }
 
+fn test_null_pointer() {
+    unsafe {
+        let null_ptr: *const u8 = core::ptr::null();
+        let _ = core::ptr::read_volatile(null_ptr);
+    }
+}
+
+fn aufgabe11() {
+    aufgabe11_test();
+    loop {}
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     // ---- Aufgabe 1 ----
@@ -126,6 +139,10 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     println!("initializing physical memory allocator... done");
     kprintln!("initializing physical memory allocator... done");
     test_phys_allocator();
+    let pml4 = pages::init_kernel_tables();
+    unsafe {
+        pages::write_cr3(pml4);
+    }
     allocator::init();
     println!("initializing allocator... done");
     kprintln!("initializing allocator... done");
@@ -138,9 +155,6 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     pic::PIC.lock().init();
     println!("initializing PIC... done");
     kprintln!("initializing PIC... done");
-    init_base_interrupts();
-    println!("initializing base interrupts... done");
-    kprintln!("initializing base interrupts... done");
     keyboard::plugin();
     println!("initializing keyboard... done");
     kprintln!("initializing keyboard... done");
@@ -156,6 +170,9 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     kprintln!("initializing PIT... done");
 
     kprintln!("Welcome to corrodingOS!");
+
+    // should throw PageFault
+    // test_null_pointer();
 
     // Check the framebuffer type and either show the CGA menu or initialize the linear framebuffer (LFB)
     if let Some(framebuffer_info) = multiboot_info.get_framebuffer_info() {
@@ -201,7 +218,11 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                 // --------------------
 
                 // ---- Aufgabe 9 ----
-                aufgabe9();
+                // aufgabe9();
+                // --------------------
+
+                // ---- Aufgabe 11 ----
+                aufgabe11();
                 // --------------------
             }
         }
