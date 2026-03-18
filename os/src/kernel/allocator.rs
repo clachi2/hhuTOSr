@@ -46,13 +46,13 @@ pub fn init() {
             .raw() as usize
     };
 
-    kprintln!(
-        "kernel heap: start=0x{:x}, size={} bytes ({} frames)",
-        heap_start,
-        HEAP_SIZE,
-        num_frames
-    );
-    FRAME_ALLOCATOR.lock().dump_free_list();
+    // kprintln!(
+    //     "kernel heap: start=0x{:x}, size={} bytes ({} frames)",
+    //     heap_start,
+    //     HEAP_SIZE,
+    //     num_frames
+    // );
+    // FRAME_ALLOCATOR.lock().dump_free_list();
 
     unsafe {
         ALLOCATOR.lock().init(heap_start, HEAP_SIZE);

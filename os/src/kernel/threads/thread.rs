@@ -21,7 +21,7 @@ use crate::consts::{STACK_ENTRY_SIZE, STACK_SIZE};
 use core::{fmt, ptr};
 use crate::kernel::paging::pages;
 use crate::kernel::paging::pages::PageTable;
-use crate::kernel::syscalls::user_api::usr_thread_exit;
+use usrlib::user_api::usr_thread_exit;
 
 unsafe extern "C" {
     fn _tss_set_rsp0(rsp0: usize);
@@ -130,6 +130,7 @@ unsafe extern "C" fn thread_user_start(stack_ptr: usize) {
 #[repr(C)]
 pub struct Thread {
     id: usize,
+    pid: usize,
     is_kernel_thread: bool,
     kernel_stack: Vec<u64>,
     user_stack: Vec<u64>,
@@ -163,6 +164,7 @@ impl Thread {
         // Create a new thread object
         let mut thread = Box::new(Thread {
             id: next_id(),
+            pid: 0,
             is_kernel_thread: true,
             kernel_stack,
             user_stack,
@@ -178,10 +180,32 @@ impl Thread {
         thread
     }
 
-    pub fn new_user_thread(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
+    pub fn new_user_thread_old(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
         let mut thread = Self::new_kernel_thread(entry, args, name);
 
         thread.is_kernel_thread = false;
+
+        // overwrite empty vector
+        let user_stack_ptr = unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
+        thread.user_stack = unsafe {
+            Vec::from_raw_parts(user_stack_ptr, STACK_SIZE / 8, STACK_SIZE / 8)
+        };
+
+        thread
+    }
+
+    pub fn new_user_thread(app_name: &str, args: Vec<String>, name: String) -> Box<Thread> {
+        let entry: fn(&[String]) = unsafe { core::mem::transmute(consts::USER_CODE_VIRT_START) };
+
+        let mut thread = Self::new_kernel_thread(entry, args, name);
+        thread.is_kernel_thread = false;
+
+        // anwendung laden und mappen
+        unsafe {
+            if !pages::map_user_app(thread.pml4, app_name) {
+                panic!("App '{}' not found in TAR archive!", app_name);
+            }
+        }
 
         // overwrite empty vector
         let user_stack_ptr = unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
@@ -264,8 +288,9 @@ impl Thread {
     /// the thread continues in user mode in the function 'kickoff_user_thread'.
     fn switch_to_usermode(&mut self) {
         let user_stack_top = Self::get_top_of_stack(&self.user_stack) as u64;
-        let user_kickoff_addr = Thread::kickoff_user_thread as u64;
-        let self_ptr = ptr::from_mut(self) as u64;
+        let entry_addr = self.entry as u64;
+        // let user_kickoff_addr = Thread::kickoff_user_thread as u64;
+        // let self_ptr = ptr::from_mut(self) as u64;
         let kernel_stack_top_addr = Self::get_top_of_stack(&self.kernel_stack) as usize;
         let len = self.kernel_stack.len();
 
@@ -273,8 +298,8 @@ impl Thread {
         self.kernel_stack[len - 2] = user_stack_top; // RSP (User Stack Pointer)
         self.kernel_stack[len - 3] = 0x200; // RFLAGS (Bit 9 = Interrupt Flag set)
         self.kernel_stack[len - 4] = (4 << 3) | 3; // CS (User Code Selector) -> index 4, RPL=3
-        self.kernel_stack[len - 5] = user_kickoff_addr;
-        self.kernel_stack[len - 6] = self_ptr; // RDI
+        self.kernel_stack[len - 5] = entry_addr;
+        self.kernel_stack[len - 6] = 0;
 
         let stack_ptr = kernel_stack_top_addr - (6 * STACK_ENTRY_SIZE);
         unsafe {
@@ -312,6 +337,14 @@ impl Thread {
         unsafe {
             ptr::from_ref(&stack[stack.len() - 1]).offset(1)
         }
+    }
+
+    pub fn get_pid(&self) -> usize {
+        self.pid
+    }
+
+    pub fn set_pid(&mut self, pid: usize) {
+        self.pid = pid;
     }
 }
 

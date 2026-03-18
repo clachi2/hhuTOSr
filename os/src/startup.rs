@@ -48,13 +48,20 @@ use crate::devices::{mouse, pit};
 use crate::kernel::cpu::IoPort;
 use crate::kernel::interrupts::pic::Irq;
 use crate::kernel::interrupts::{idt, intdispatcher, pic};
+use crate::kernel::multiboot;
 use crate::kernel::multiboot::{FramebufferType, MultibootInfo};
+use crate::kernel::paging::pages;
 use crate::kernel::threads::scheduler::get_scheduler;
 use crate::kernel::threads::thread::Thread;
 use crate::user::aufgabe4::thread_demo;
 use crate::user::aufgabe5::thread_demo as aufgabe5_thread_demo;
 use crate::user::aufgabe5::thread_demo::run;
 use crate::user::aufgabe7::graphic_demo;
+use crate::user::aufgabe7::spinner::spinner;
+use crate::user::aufgabe8::user_threads::thread_test;
+use crate::user::aufgabe9::syscall_demo::syscall_test;
+use crate::user::aufgabe10::phys_allocator_test::test_phys_allocator;
+use crate::user::aufgabe11::pages_test::aufgabe11_test;
 use crate::user::shell::shell_thread;
 use user::aufgabe1::keyboard_demo;
 use user::aufgabe1::text_demo;
@@ -62,12 +69,7 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
-use crate::kernel::paging::pages;
-use crate::user::aufgabe10::phys_allocator_test::{test_phys_allocator};
-use crate::user::aufgabe11::pages_test::aufgabe11_test;
-use crate::user::aufgabe7::spinner::spinner;
-use crate::user::aufgabe8::user_threads::thread_test;
-use crate::user::aufgabe9::syscall_demo::syscall_test;
+use crate::user::aufgabe12::process_test::aufgabe12_test;
 
 fn aufgabe1() {
     cga::CGA.lock().clear();
@@ -122,6 +124,11 @@ fn aufgabe11() {
     loop {}
 }
 
+fn aufgabe12() {
+    aufgabe12_test();
+    loop {}
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     // ---- Aufgabe 1 ----
@@ -134,11 +141,12 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
 
     // Copy multiboot into on stack, because it lies in physical memory that might get reused after initializing the physical memory allocator
     let multiboot_info = *multiboot_info;
+    multiboot::MULTIBOOT_INFO.call_once(|| multiboot_info);
 
     multiboot_info.init_phys_memory_allocator();
     println!("initializing physical memory allocator... done");
     kprintln!("initializing physical memory allocator... done");
-    test_phys_allocator();
+    // test_phys_allocator();
     let pml4 = pages::init_kernel_tables();
     unsafe {
         pages::write_cr3(pml4);
@@ -222,7 +230,11 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                 // --------------------
 
                 // ---- Aufgabe 11 ----
-                aufgabe11();
+                // aufgabe11();
+                // --------------------
+
+                // ---- Aufgabe 12 ----
+                aufgabe12();
                 // --------------------
             }
         }

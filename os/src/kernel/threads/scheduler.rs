@@ -21,6 +21,7 @@ use core::fmt::Display;
 use core::sync::atomic::{AtomicBool, AtomicUsize};
 use core::{fmt, ptr};
 use spin::{Mutex, Once};
+use crate::kernel::processes::process::{add_process, remove_process, Process};
 
 /// Global scheduler instance
 static SCHEDULER: Once<Scheduler> = Once::new();
@@ -82,6 +83,12 @@ impl Scheduler {
         state.active_thread.as_ref().unwrap().get_id()
     }
 
+    /// Get the PID of the currently active thread.
+    pub fn get_active_pid(&self) -> usize {
+        let state = self.state.lock();
+        state.active_thread.as_ref().unwrap().get_pid()
+    }
+
     /// Start the scheduler.
     /// This function must only be called once.
     pub fn schedule(&self) {
@@ -117,6 +124,11 @@ impl Scheduler {
         state
             .alive_threads
             .retain(|&(id, ref name)| id != current.get_id());
+
+        let pid = current.get_pid();
+        if pid != 0{
+            remove_process(pid);
+        }
 
         // The idle thread never exits, so there must be at least one thread in the queue.
         let next = state.ready_queue.dequeue().unwrap();
@@ -254,6 +266,22 @@ impl Scheduler {
             .join("\n");
 
         format!("processes:\n{}", processes_string)
+    }
+
+    /// Legt einen neuen Prozess an und startet ihn in einem User-Thread.
+    pub fn spawn_process(&self, app_name: &str) {
+        let process = Process::new(app_name);
+        let pid = process.get_id();
+        add_process(process);
+
+        let mut thread = Thread::new_user_thread(
+            app_name,
+            Vec::new(),
+            String::from(app_name)
+        );
+
+        thread.set_pid(pid);
+        self.ready(thread);
     }
 }
 

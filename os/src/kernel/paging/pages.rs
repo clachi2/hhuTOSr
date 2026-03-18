@@ -1,5 +1,6 @@
 use core::ptr;
-use crate::consts::{PAGE_SIZE, STACK_SIZE, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
+use crate::consts::{PAGE_SIZE, STACK_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
+use crate::kernel::multiboot::MULTIBOOT_INFO;
 use crate::kernel::paging::frames::{PhysAddr, FRAME_ALLOCATOR};
 
 const PAGE_TABLE_ENTRIES: usize = 512;
@@ -19,12 +20,18 @@ bitflags::bitflags! {
     }
 }
 
+pub enum MapType {
+    Identity, // 1:1 mapping (virtuelle = physikalische adresse)
+    Allocate, // dynamisch neue Frames anfordern
+    Contiguous(PhysAddr), // bereits zusammenhängenden physikalischen Block einblenden
+}
+
 impl PageFlags {
     fn kernel_flags() -> Self {
         /*
          * Hier muss Code eingefuegt werden
          */
-        PageFlags::PRESENT | PageFlags::WRITEABLE | PageFlags::USER // TODO later remove USER flag
+        PageFlags::PRESENT | PageFlags::WRITEABLE
     }
 
     fn user_flags() -> Self {
@@ -87,7 +94,7 @@ impl PageTable {
     /// If `kernel` is true, the pages will be mapped 1:1 to their physical addresses
     /// (virt_addr == phys_addr). Otherwise, new physical frames will be allocated
     /// for the mapping, using the frame allocator.
-    fn map(&mut self, virt_addr: u64, num_pages: usize, kernel: bool) -> usize {
+    pub fn map(&mut self, virt_addr: u64, num_pages: usize, map_type: MapType, kernel: bool) -> usize {
         let mut mapped_pages = 0;
         let target_flags = if kernel { PageFlags::kernel_flags() } else { PageFlags::user_flags() };
 
@@ -133,11 +140,14 @@ impl PageTable {
 
             // PT (level 1)
             let pt_entry = &mut pt.entries[pt_index];
-            let phys_addr = if kernel {
-                // 1:1 mapping
-                PhysAddr::new(v_addr)
-            } else {
-                unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PT allocation") }
+
+            let phys_addr = match map_type {
+                MapType::Identity => PhysAddr::new(v_addr),
+                MapType::Allocate => unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PT allocation") },
+                MapType::Contiguous(start_phys) => {
+                    let base_addr: u64 = start_phys.into();
+                    PhysAddr::new(base_addr + (i * PAGE_SIZE) as u64)
+                }
             };
 
             pt_entry.set(phys_addr, target_flags);
@@ -181,7 +191,17 @@ pub fn init_kernel_tables() -> &'static mut PageTable {
                 .as_mut()
                 .unwrap();
 
-        pml4.map(0, num_pages, true);
+        pml4.map(0, num_pages, MapType::Identity, true);
+
+        if let Some(mb_info) = MULTIBOOT_INFO.get() {
+            if let Some(fb) = mb_info.get_framebuffer_info() {
+                let fb_size = (fb.pitch * fb.height) as usize;
+                let fb_pages = (fb_size + PAGE_SIZE - 1) / PAGE_SIZE;
+                // framebuffer 1:1 als kernel speicher einblenden
+                pml4.map(fb.addr, fb_pages, MapType::Identity, true);
+            }
+        }
+
         pml4
     }
 }
@@ -189,6 +209,41 @@ pub fn init_kernel_tables() -> &'static mut PageTable {
 pub unsafe fn map_user_stack(pml4_table: &mut PageTable) -> *mut u8 {
     let num_pages = STACK_SIZE / PAGE_SIZE;
     let virt_addr = USER_STACK_VIRT_START as u64;
-    pml4_table.map(virt_addr, num_pages, false);
+    pml4_table.map(virt_addr, num_pages, MapType::Allocate, false);
     virt_addr as *mut u8
+}
+
+pub unsafe fn map_user_app(pml4: &mut PageTable, app_name: &str) -> bool {
+    let mb_info = MULTIBOOT_INFO.get().expect("Multiboot info not initialized");
+    let archive = match mb_info.get_initrd_archive() {
+        Some(a) => a,
+        None => return false,
+    };
+
+    let mut app_data: Option<&[u8]> = None;
+    for file in archive.entries() {
+        if file.filename().as_str().unwrap() == app_name {
+            app_data = Some(file.data());
+            break;
+        }
+    }
+    let data = match app_data {
+        Some(d) => d,
+        None => return false, // App nicht gefunden
+    };
+
+    let num_pages = (data.len() + PAGE_SIZE - 1) / PAGE_SIZE;
+    let phys_addr = FRAME_ALLOCATOR.lock().alloc_block(num_pages).expect("OOM allocating app");
+
+    let dest = phys_addr.as_mut_ptr::<u8>();
+    ptr::copy_nonoverlapping(data.as_ptr(), dest, data.len());
+
+    pml4.map(
+        USER_CODE_VIRT_START as u64,
+        num_pages,
+        MapType::Contiguous(phys_addr),
+        false
+    );
+
+    true
 }

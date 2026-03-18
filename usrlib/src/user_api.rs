@@ -19,6 +19,7 @@ pub enum SyscallFunction {
     ThreadYield,
     ThreadExit,
     ThreadGetId,
+    ProcessGetId,
     GetSystemTime,
     Print,
     Println,
@@ -43,6 +44,10 @@ pub fn usr_thread_exit() {
 
 pub fn usr_thread_get_id() -> usize {
     syscall0(SyscallFunction::ThreadGetId) as usize
+}
+
+pub fn usr_process_get_id() -> usize {
+    syscall0(SyscallFunction::ProcessGetId) as usize
 }
 
 pub fn usr_get_system_time() -> usize {

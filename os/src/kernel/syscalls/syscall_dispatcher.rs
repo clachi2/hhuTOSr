@@ -16,8 +16,8 @@ use core::arch::{naked_asm};
 use crate::kernel::syscalls::functions::functions::sys_get_system_time;
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
 use crate::kernel::syscalls::functions::io::{sys_get_char, sys_kprint, sys_kprintln, sys_print, sys_println};
-use crate::kernel::syscalls::functions::thread::{sys_thread_exit, sys_thread_get_id, sys_thread_yield};
-use crate::kernel::syscalls::user_api::SyscallFunction;
+use crate::kernel::syscalls::functions::thread::{sys_process_get_id, sys_thread_exit, sys_thread_get_id, sys_thread_yield};
+use usrlib::user_api::SyscallFunction;
 
 /// Global syscall function table.
 static SYSCALL_TABLE: SyscallFunctionTable = SyscallFunctionTable::new();
@@ -37,6 +37,7 @@ impl SyscallFunctionTable {
                 sys_thread_yield as *const u64,
                 sys_thread_exit as *const u64,
                 sys_thread_get_id as *const u64,
+                sys_process_get_id as *const u64,
                 sys_get_system_time as *const u64,
                 sys_print as *const u64,
                 sys_println as *const u64,

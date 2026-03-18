@@ -12,7 +12,7 @@ pub fn stack_trace(stack_pointer: u64) {
     // 2. Calculate the dynamic number of words we can safely scan
     let max_words = (page_top - stack_pointer) / 8;
 
-    kprint!("x86_64-elf-addr2line -pfCi -e ./target/hhu_tosr/debug/kernel.bin");
+    kprint!("x86_64-elf-addr2line -pfCi -e ./target/hhu_tosr_kernel/debug/kernel.bin");
 
     for i in 0..max_words as usize {
         unsafe {
