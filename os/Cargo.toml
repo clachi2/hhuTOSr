@@ -9,7 +9,9 @@ crate-type = ["staticlib"]
 path = "src/startup.rs"
 
 [dependencies]
+usrlib = { path = "../usrlib" }
 spin = "0.10.0"
 x86_64 = "0.15.2"
 nolock = { version = "0.4.1", default-features = false, features = ["queues"] }
 bitflags = "2.9.0"
+tar-no-std = "0.4.2"

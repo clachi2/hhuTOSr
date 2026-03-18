@@ -11,7 +11,7 @@
 use core::fmt::Write;
 use crate::kernel::cpu;
 // use spin::Mutex;
-use crate::library::spinlock::Spinlock as Mutex;
+use usrlib::spinlock::Spinlock as Mutex;
 // use crate::library::mutex::Mutex;
 
 /// Global CGA instance, used for screen output in the whole kernel.

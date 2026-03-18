@@ -2,7 +2,7 @@ use crate::kernel::cpu;
 use crate::kernel::threads::scheduler::{SCHEDULER_ACTIVE, get_scheduler};
 use crate::kernel::threads::thread::Thread;
 use crate::library::queue::LinkedQueue;
-use crate::library::spinlock::{Spinlock, SpinlockGuard};
+use usrlib::spinlock::{Spinlock, SpinlockGuard};
 use alloc::boxed::Box;
 use alloc::string::ToString;
 use core::arch::asm;
