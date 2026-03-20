@@ -1,6 +1,7 @@
 use alloc::collections::BTreeMap;
 use alloc::string::String;
 use core::sync::atomic::AtomicUsize;
+use crate::kernel::processes::vma::VMA;
 use crate::library::mutex::Mutex;
 
 static PROCESSES: Mutex<BTreeMap<usize, Process>> = Mutex::new(BTreeMap::new());
@@ -47,3 +48,14 @@ pub fn get_app_name(process_id: usize) -> Option<String> {
     let map = PROCESSES.lock();
     map.get(&process_id).map(|p| p.name.clone())
 }
+
+
+pub fn add_vma(process_id: usize, vma: VMA) -> Result<(), &'static str> {
+    /*
+     * Hier muss Code eingefuegt werden
+     */
+
+    todo!()
+    // Err("Process not found")
+}
+
