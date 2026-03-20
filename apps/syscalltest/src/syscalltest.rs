@@ -3,7 +3,7 @@
 use core::panic::PanicInfo;
 use usrlib::format_user;
 use usrlib::stack_string::StackString;
-use usrlib::user_api::{usr_get_char, usr_get_system_time, usr_kprintln, usr_print, usr_println, usr_process_get_id, usr_thread_exit};
+use usrlib::user_api::{usr_dump_vmas, usr_get_char, usr_get_system_time, usr_kprintln, usr_print, usr_println, usr_process_get_id, usr_thread_exit};
 
 #[unsafe(link_section = ".main")]
 #[unsafe(no_mangle)]
@@ -21,6 +21,9 @@ fn main() {
     let time = usr_get_system_time();
     usr_println(format_user!("syscalltest-process: the current system time is {}!", time).as_str());
     usr_kprintln(format_user!("syscalltest-process: the current system time is {}!", time).as_str());
+
+    usr_println("VMA dump (kprint)...");
+    usr_dump_vmas();
 
     usr_println("You can now type stuff: ");
     loop{

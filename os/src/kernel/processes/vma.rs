@@ -25,6 +25,7 @@ impl VMA {
         /*
          * Hier muss Code eingefuegt werden
          */
+        self.start < other.end && other.start < self.end
     }
 }
 

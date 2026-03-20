@@ -1,5 +1,6 @@
 use alloc::collections::BTreeMap;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::sync::atomic::AtomicUsize;
 use crate::kernel::processes::vma::VMA;
 use crate::library::mutex::Mutex;
@@ -10,13 +11,18 @@ static NEXT_PID: AtomicUsize = AtomicUsize::new(1);
 #[derive(Debug)]
 pub struct Process {
     id: usize,
-    name: String
+    name: String,
+    pub vmas: Vec<VMA>,
 }
 
 impl Process {
     pub fn new(name: &str) -> Self {
         let pid = NEXT_PID.fetch_add(1, core::sync::atomic::Ordering::SeqCst);
-        Process { id: pid, name: String::from(name) }
+        Process {
+            id: pid,
+            name: String::from(name),
+            vmas: Vec::new(),
+        }
     }
 
     pub fn get_id(&self) -> usize {
@@ -55,7 +61,28 @@ pub fn add_vma(process_id: usize, vma: VMA) -> Result<(), &'static str> {
      * Hier muss Code eingefuegt werden
      */
 
-    todo!()
-    // Err("Process not found")
+    let mut map = PROCESSES.lock();
+    let process = map.get_mut(&process_id).ok_or("Process not found")?;
+
+    for existing_vma in &process.vmas {
+        if existing_vma.overlaps(&vma) {
+            return Err("VMA overlaps with existing region");
+        }
+    }
+
+    process.vmas.push(vma);
+    Ok(())
+}
+
+pub fn dump_process_vmas(process_id: usize) {
+    let map = PROCESSES.lock();
+    if let Some(process) = map.get(&process_id) {
+        kprintln!("VMAs for process '{}' (PID {}):", process.name, process.id);
+        for vma in &process.vmas {
+            kprintln!("  {:?}", vma);
+        }
+    } else {
+        kprintln!("process with PID {} not found", process_id);
+    }
 }
 

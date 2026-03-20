@@ -20,6 +20,7 @@ pub enum SyscallFunction {
     ThreadExit,
     ThreadGetId,
     ProcessGetId,
+    DumpVmas,
     GetSystemTime,
     Print,
     Println,
@@ -48,6 +49,10 @@ pub fn usr_thread_get_id() -> usize {
 
 pub fn usr_process_get_id() -> usize {
     syscall0(SyscallFunction::ProcessGetId) as usize
+}
+
+pub fn usr_dump_vmas() {
+    syscall0(SyscallFunction::DumpVmas);
 }
 
 pub fn usr_get_system_time() -> usize {

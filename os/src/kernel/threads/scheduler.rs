@@ -21,7 +21,10 @@ use core::fmt::Display;
 use core::sync::atomic::{AtomicBool, AtomicUsize};
 use core::{fmt, ptr};
 use spin::{Mutex, Once};
-use crate::kernel::processes::process::{add_process, remove_process, Process};
+use crate::consts::{PAGE_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
+use crate::kernel::multiboot::MULTIBOOT_INFO;
+use crate::kernel::processes::process::{add_process, add_vma, remove_process, Process};
+use crate::kernel::processes::vma::{VmaType, VMA};
 
 /// Global scheduler instance
 static SCHEDULER: Once<Scheduler> = Once::new();
@@ -273,6 +276,31 @@ impl Scheduler {
         let process = Process::new(app_name);
         let pid = process.get_id();
         add_process(process);
+
+        let mb_info = MULTIBOOT_INFO.get().expect("Multiboot info missing");
+        let archive = mb_info.get_initrd_archive().expect("Initrd missing");
+
+        let mut app_size = 0;
+        for file in archive.entries() {
+            if file.filename().as_str().unwrap() == app_name || file.filename().as_str().unwrap() == format!("./{}", app_name) {
+                app_size = file.data().len() as u64;
+                break;
+            }
+        }
+        let aligned_app_size = (app_size + PAGE_SIZE as u64 - 1) & !(PAGE_SIZE as u64 - 1);
+
+        let code_vma = VMA::new(
+            USER_CODE_VIRT_START as u64,
+            USER_CODE_VIRT_START as u64 + aligned_app_size,
+            VmaType::Code
+        );
+        let stack_vma = VMA::new(
+            USER_STACK_VIRT_START as u64,
+            USER_STACK_VIRT_END as u64,
+            VmaType::Stack
+        );
+        let _ = add_vma(pid, code_vma);
+        let _ = add_vma(pid, stack_vma);
 
         let mut thread = Thread::new_user_thread(
             app_name,
