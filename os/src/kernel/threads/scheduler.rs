@@ -7,7 +7,7 @@
    ║ Autor:  Michael Schoettner, 15.05.2023                                  ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-use crate::kernel::allocator::is_locked;
+use usrlib::allocator::is_locked;
 use crate::kernel::cpu;
 use crate::kernel::threads::idle_thread::idle_thread;
 use crate::kernel::threads::thread;
@@ -25,6 +25,7 @@ use crate::consts::{PAGE_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_S
 use crate::kernel::multiboot::MULTIBOOT_INFO;
 use crate::kernel::processes::process::{add_process, add_vma, remove_process, Process};
 use crate::kernel::processes::vma::{VmaType, VMA};
+use crate::library::utils::strings_equal;
 
 /// Global scheduler instance
 static SCHEDULER: Once<Scheduler> = Once::new();
@@ -282,9 +283,11 @@ impl Scheduler {
 
         let mut app_size = 0;
         for file in archive.entries() {
-            if file.filename().as_str().unwrap() == app_name || file.filename().as_str().unwrap() == format!("./{}", app_name) {
-                app_size = file.data().len() as u64;
-                break;
+            if let Ok(name) = file.filename().as_str() {
+                if strings_equal(name, app_name){
+                    app_size = file.data().len() as u64;
+                    break;
+                }
             }
         }
         let aligned_app_size = (app_size + PAGE_SIZE as u64 - 1) & !(PAGE_SIZE as u64 - 1);
@@ -299,8 +302,8 @@ impl Scheduler {
             USER_STACK_VIRT_END as u64,
             VmaType::Stack
         );
-        let _ = add_vma(pid, code_vma);
-        let _ = add_vma(pid, stack_vma);
+        add_vma(pid, code_vma).expect("code VMA overlap");
+        add_vma(pid, stack_vma).expect("stack VMA overlap");
 
         let mut thread = Thread::new_user_thread(
             app_name,

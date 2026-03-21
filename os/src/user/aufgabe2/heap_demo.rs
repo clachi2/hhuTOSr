@@ -1,5 +1,5 @@
 use crate::devices::{cga, keyboard};
-use crate::kernel::allocator;
+use usrlib::allocator;
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 

@@ -2,6 +2,7 @@ use core::ptr;
 use crate::consts::{PAGE_SIZE, STACK_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
 use crate::kernel::multiboot::MULTIBOOT_INFO;
 use crate::kernel::paging::frames::{PhysAddr, FRAME_ALLOCATOR};
+use crate::library::utils::strings_equal;
 
 const PAGE_TABLE_ENTRIES: usize = 512;
 
@@ -118,6 +119,7 @@ impl PageTable {
             let pml4_entry = &mut self.entries[pml4_index];
             if !pml4_entry.get_flags().contains(PageFlags::PRESENT) {
                 let frame = unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PML4") };
+                // unsafe { ptr::write_bytes(frame.as_mut_ptr::<u8>(), 0, PAGE_SIZE); }
                 pml4_entry.set(frame, dir_flags);
             }
             let pdpt = unsafe { &mut *pml4_entry.get_addr().as_mut_ptr::<PageTable>() };
@@ -126,6 +128,7 @@ impl PageTable {
             let pdpt_entry = &mut pdpt.entries[pdpt_index];
             if !pdpt_entry.get_flags().contains(PageFlags::PRESENT) {
                 let frame = unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PDPT") };
+                // unsafe { ptr::write_bytes(frame.as_mut_ptr::<u8>(), 0, PAGE_SIZE); }
                 pdpt_entry.set(frame, dir_flags);
             }
             let pd = unsafe { &mut *pdpt_entry.get_addr().as_mut_ptr::<PageTable>() };
@@ -134,6 +137,7 @@ impl PageTable {
             let pd_entry = &mut pd.entries[pd_index];
             if !pd_entry.get_flags().contains(PageFlags::PRESENT) {
                 let frame = unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PD") };
+                // unsafe { ptr::write_bytes(frame.as_mut_ptr::<u8>(), 0, PAGE_SIZE); }
                 pd_entry.set(frame, dir_flags);
             }
             let pt = unsafe { &mut *pd_entry.get_addr().as_mut_ptr::<PageTable>() };
@@ -143,7 +147,11 @@ impl PageTable {
 
             let phys_addr = match map_type {
                 MapType::Identity => PhysAddr::new(v_addr),
-                MapType::Allocate => unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PT allocation") },
+                MapType::Allocate => {
+                    let frame = unsafe { FRAME_ALLOCATOR.lock().alloc_block(1).expect("OOM in PT allocation") };
+                    // unsafe { ptr::write_bytes(frame.as_mut_ptr::<u8>(), 0, PAGE_SIZE); }
+                    frame
+                },
                 MapType::Contiguous(start_phys) => {
                     let base_addr: u64 = start_phys.into();
                     PhysAddr::new(base_addr + (i * PAGE_SIZE) as u64)
@@ -191,6 +199,8 @@ pub fn init_kernel_tables() -> &'static mut PageTable {
                 .as_mut()
                 .unwrap();
 
+        // ptr::write_bytes(pml4 as *mut PageTable as *mut u8, 0, PAGE_SIZE);
+
         pml4.map(0, num_pages, MapType::Identity, true);
 
         if let Some(mb_info) = MULTIBOOT_INFO.get() {
@@ -207,10 +217,19 @@ pub fn init_kernel_tables() -> &'static mut PageTable {
 }
 
 pub unsafe fn map_user_stack(pml4_table: &mut PageTable) -> *mut u8 {
-    let num_pages = STACK_SIZE / PAGE_SIZE;
-    let virt_addr = USER_STACK_VIRT_START as u64;
-    pml4_table.map(virt_addr, num_pages, MapType::Allocate, false);
-    virt_addr as *mut u8
+    let top_page_addr = (USER_STACK_VIRT_END - PAGE_SIZE) as u64;
+    pml4_table.map(top_page_addr, 1, MapType::Allocate, false);
+    USER_STACK_VIRT_END as *mut u8
+}
+
+pub fn check_and_grow_user_stack(virt_addr: u64) -> bool {
+    if virt_addr >= USER_STACK_VIRT_START as u64 && virt_addr < USER_STACK_VIRT_END as u64 {
+        let pml4 = read_cr3();
+        let page_to_map = virt_addr & !(PAGE_SIZE as u64 - 1);
+        pml4.map(page_to_map, 1, MapType::Allocate, false);
+        return true;
+    }
+    false
 }
 
 pub unsafe fn map_user_app(pml4: &mut PageTable, app_name: &str) -> bool {
@@ -219,12 +238,13 @@ pub unsafe fn map_user_app(pml4: &mut PageTable, app_name: &str) -> bool {
         Some(a) => a,
         None => return false,
     };
-
     let mut app_data: Option<&[u8]> = None;
     for file in archive.entries() {
-        if file.filename().as_str().unwrap() == app_name {
-            app_data = Some(file.data());
-            break;
+        if let Ok(name) = file.filename().as_str() {
+            if strings_equal(name, app_name) {
+                app_data = Some(file.data());
+                break;
+            }
         }
     }
     let data = match app_data {
@@ -246,4 +266,9 @@ pub unsafe fn map_user_app(pml4: &mut PageTable, app_name: &str) -> bool {
     );
 
     true
+}
+
+pub unsafe fn map_user_heap(pml4_table: &mut PageTable, user_heap_start: u64, user_heap_size: usize){
+    let num_pages = (user_heap_size + PAGE_SIZE - 1) / PAGE_SIZE;
+    pml4_table.map(user_heap_start, num_pages, MapType::Allocate, false);
 }

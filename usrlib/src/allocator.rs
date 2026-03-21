@@ -17,13 +17,9 @@
    ║         https://os.phil-opp.com/allocator-designs/                      ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-use crate::kernel::allocator::bump::BumpAllocator;
-use crate::kernel::allocator::list::LinkedListAllocator;
-use alloc::alloc::Layout;
-// use spin::{Mutex, MutexGuard};
-use crate::library::mutex::{Mutex, MutexGuard};
-use crate::consts::{HEAP_SIZE, PAGE_FRAME_SIZE};
-use crate::kernel::paging::frames::FRAME_ALLOCATOR;
+use core::alloc::Layout;
+use crate::allocator::list::LinkedListAllocator;
+use crate::spinlock::{Spinlock, SpinlockGuard};
 
 pub mod bump;
 pub mod list;
@@ -35,27 +31,9 @@ pub static ALLOCATOR: Locked<LinkedListAllocator> =
     Locked::new(LinkedListAllocator::new());
 
 /// Initialize the heap allocator.
-pub fn init() {
-    let num_frames = HEAP_SIZE.div_ceil(PAGE_FRAME_SIZE);
-
-    let heap_start = unsafe {
-        FRAME_ALLOCATOR
-            .lock()
-            .alloc_block(num_frames)
-            .expect("failed to alloc heap")
-            .raw() as usize
-    };
-
-    // kprintln!(
-    //     "kernel heap: start=0x{:x}, size={} bytes ({} frames)",
-    //     heap_start,
-    //     HEAP_SIZE,
-    //     num_frames
-    // );
-    // FRAME_ALLOCATOR.lock().dump_free_list();
-
+pub fn init(heap_start: usize, heap_size: usize) {
     unsafe {
-        ALLOCATOR.lock().init(heap_start, HEAP_SIZE);
+        ALLOCATOR.lock().init(heap_start, heap_size);
     }
 }
 
@@ -83,17 +61,17 @@ pub fn dump_free_list_shell() {
 /// A wrapper around `spin::Mutex` to allow for trait implementations.
 /// Required for implementing `GlobalAlloc` in `bump.rs` and `list.rs`.
 pub struct Locked<A> {
-    inner: Mutex<A>,
+    inner: Spinlock<A>,
 }
 
 impl<A> Locked<A> {
     pub const fn new(inner: A) -> Self {
         Locked {
-            inner: Mutex::new(inner),
+            inner: Spinlock::new(inner),
         }
     }
 
-    pub fn lock(&self) -> MutexGuard<'_, A> {
+    pub fn lock(&self) -> SpinlockGuard<'_, A> {
         self.inner.lock()
     }
 

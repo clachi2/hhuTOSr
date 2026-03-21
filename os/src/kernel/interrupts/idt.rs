@@ -1,7 +1,7 @@
 use core::arch::asm;
 use core::ptr;
 use spin::once::Once;
-use crate::kernel::interrupts::base_interrupts::{division_by_zero_handler, general_protection_fault_handler, page_fault_handler};
+use crate::kernel::interrupts::base_interrupts::{division_by_zero_handler, general_protection_fault_handler, invalid_opcode_handler, page_fault_handler};
 use crate::kernel::interrupts::intdispatcher::int_disp;
 use crate::kernel::interrupts::InterruptStackFrame;
 use crate::kernel::syscalls::syscall_dispatcher::syscall_disp;
@@ -147,7 +147,7 @@ impl Idt {
                 interrupt_handler!(0x03, int_disp),
                 interrupt_handler!(0x04, int_disp),
                 interrupt_handler!(0x05, int_disp),
-                interrupt_handler!(0x06, int_disp),
+                interrupt_handler!(0x06, invalid_opcode_handler),
                 interrupt_handler!(0x07, int_disp),
                 interrupt_handler!(0x08, int_disp),
                 interrupt_handler!(0x09, int_disp),

@@ -5,3 +5,4 @@ pub mod user_api;
 pub mod print;
 pub mod spinlock;
 pub mod stack_string;
+pub mod allocator;

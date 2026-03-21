@@ -8,14 +8,10 @@
  *  ╚═════════════════════════════════════════════════════════════════════════╝
  */
 use super::{Locked, align_up};
-use crate::devices::cga_print::print;
-use crate::kernel::allocator::bump::BumpAllocator;
-use crate::kernel::cpu;
-use alloc::alloc::{GlobalAlloc, Layout};
-use alloc::format;
-use alloc::string::String;
-use core::{mem, ptr};
-use crate::shell_println;
+use core::{ptr};
+use core::alloc::{GlobalAlloc, Layout};
+// use hhu_tosr::shell_println;
+// use hhu_tosr::devices::cga_print::print;
 
 /// Header of a free block in the list allocator.
 struct ListNode {
@@ -153,21 +149,22 @@ impl LinkedListAllocator {
     }
 
     pub fn dump_free_list_shell(&self) {
-        let mut current = &self.head;
-        shell_println!(
-            "Heap start: {:#x}, end: {:#x}",
-            self.heap_start,
-            self.heap_end
-        );
-        while let Some(ref region) = current.next {
-            shell_println!(
-                "    Block start={:#x}, Block end={:#x}, Block size={}",
-                region.start_addr(),
-                region.end_addr(),
-                region.size
-            );
-            current = region;
-        }
+        // let mut current = &self.head;
+        // shell_println!(
+        //     "Heap start: {:#x}, end: {:#x}",
+        //     self.heap_start,
+        //     self.heap_end
+        // );
+        // while let Some(ref region) = current.next {
+        //     shell_println!(
+        //         "    Block start={:#x}, Block end={:#x}, Block size={}",
+        //         region.start_addr(),
+        //         region.end_addr(),
+        //         region.size
+        //     );
+        //     current = region;
+        // }
+        // TODO
     }
 
     pub unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
@@ -181,8 +178,9 @@ impl LinkedListAllocator {
 
         if let Some(block) = self.find_free_block(size, align) {
             let addr = align_up(block.start_addr(), align);
-            let rest = block.size - (addr - block.start_addr()) - size;
-            if rest > 0 {
+            // let rest = block.size - (addr - block.start_addr()) - size;
+            let rest = block.size - size;
+            if rest > size_of::<ListNode>() {
                 unsafe {
                     self.add_free_block(addr + size, rest);
                 }

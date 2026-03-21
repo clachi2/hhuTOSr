@@ -17,7 +17,7 @@ use alloc::vec::Vec;
 use core::arch::naked_asm;
 use core::fmt::Display;
 use core::sync::atomic::AtomicUsize;
-use crate::consts::{STACK_ENTRY_SIZE, STACK_SIZE};
+use crate::consts::{STACK_ENTRY_SIZE, STACK_SIZE, USER_STACK_VIRT_END};
 use core::{fmt, ptr};
 use crate::kernel::paging::pages;
 use crate::kernel::paging::pages::PageTable;
@@ -133,7 +133,6 @@ pub struct Thread {
     pid: usize,
     is_kernel_thread: bool,
     kernel_stack: Vec<u64>,
-    user_stack: Vec<u64>,
     stack_ptr: usize, // Pointer on the stack to the saved context
     pml4: &'static mut PageTable,
     entry: fn(&[String]),
@@ -150,11 +149,6 @@ impl Thread {
             kernel_stack.push(0);
         }
 
-        let user_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
-        // for _ in 0..user_stack.capacity() {
-        //     user_stack.push(0);
-        // }
-
         // Set the stack pointer to the top of the stack
         let stack_ptr = ptr::from_ref(&kernel_stack[kernel_stack.capacity() - 1]) as usize;
 
@@ -167,7 +161,6 @@ impl Thread {
             pid: 0,
             is_kernel_thread: true,
             kernel_stack,
-            user_stack,
             stack_ptr,
             pml4,
             entry,
@@ -185,11 +178,7 @@ impl Thread {
 
         thread.is_kernel_thread = false;
 
-        // overwrite empty vector
-        let user_stack_ptr = unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
-        thread.user_stack = unsafe {
-            Vec::from_raw_parts(user_stack_ptr, STACK_SIZE / 8, STACK_SIZE / 8)
-        };
+        unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
 
         thread
     }
@@ -207,11 +196,7 @@ impl Thread {
             }
         }
 
-        // overwrite empty vector
-        let user_stack_ptr = unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
-        thread.user_stack = unsafe {
-            Vec::from_raw_parts(user_stack_ptr, STACK_SIZE / 8, STACK_SIZE / 8)
-        };
+        unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
 
         thread
     }
@@ -287,7 +272,7 @@ impl Thread {
     /// switches to user mode (Ring 3) and the user stack is used. If this function works correctly,
     /// the thread continues in user mode in the function 'kickoff_user_thread'.
     fn switch_to_usermode(&mut self) {
-        let user_stack_top = Self::get_top_of_stack(&self.user_stack) as u64;
+        let user_stack_top = USER_STACK_VIRT_END as u64;
         let entry_addr = self.entry as u64;
         // let user_kickoff_addr = Thread::kickoff_user_thread as u64;
         // let self_ptr = ptr::from_mut(self) as u64;
@@ -299,7 +284,6 @@ impl Thread {
         self.kernel_stack[len - 3] = 0x200; // RFLAGS (Bit 9 = Interrupt Flag set)
         self.kernel_stack[len - 4] = (4 << 3) | 3; // CS (User Code Selector) -> index 4, RPL=3
         self.kernel_stack[len - 5] = entry_addr;
-        self.kernel_stack[len - 6] = 0;
 
         let stack_ptr = kernel_stack_top_addr - (6 * STACK_ENTRY_SIZE);
         unsafe {
@@ -351,15 +335,5 @@ impl Thread {
 impl Display for Thread {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, \'{}\')", self.id, self.name)
-    }
-}
-
-impl Drop for Thread {
-    fn drop(&mut self) {
-        if !self.is_kernel_thread {
-            // Take ownership of the Vec and "forget" it so it doesn't deallocate
-            let vec = core::mem::take(&mut self.user_stack);
-            core::mem::forget(vec);
-        }
     }
 }

@@ -37,7 +37,7 @@ use devices::cga; // shortcut for cga
 use devices::cga_print; // used to import code needed by println!
 use devices::keyboard; // shortcut for keyboard
 
-use kernel::allocator;
+use usrlib::allocator;
 use kernel::cpu;
 
 use crate::devices::cga_print::print;
@@ -69,38 +69,8 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
+use crate::kernel::paging::frames::FRAME_ALLOCATOR;
 use crate::user::aufgabe12::process_test::aufgabe12_test;
-
-fn aufgabe1() {
-    cga::CGA.lock().clear();
-    text_demo::run();
-    println!("");
-    keyboard_demo::run();
-    loop {}
-}
-
-fn aufgabe2() {
-    allocator::init();
-    heap_demo::run();
-    sound_demo::run();
-    loop {}
-}
-
-fn aufgabe3() {
-    aufgabe3_keyboard_demo::run();
-    loop {}
-}
-
-fn aufgabe4() {
-    // coroutine_demo::run();
-    thread_demo::run();
-    loop {}
-}
-
-fn aufgabe5() {
-    aufgabe5_thread_demo::run();
-    loop {}
-}
 
 fn aufgabe8() {
     thread_test();
@@ -151,7 +121,15 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
     unsafe {
         pages::write_cr3(pml4);
     }
-    allocator::init();
+    let num_frames = consts::HEAP_SIZE.div_ceil(consts::PAGE_FRAME_SIZE);
+    let heap_start = unsafe {
+        FRAME_ALLOCATOR
+            .lock()
+            .alloc_block(num_frames)
+            .expect("failed to alloc kernel heap")
+            .raw() as usize
+    };
+    allocator::init(heap_start, consts::HEAP_SIZE);
     println!("initializing allocator... done");
     kprintln!("initializing allocator... done");
     idt::get_idt().load();
