@@ -7,7 +7,7 @@ use alloc::vec::Vec;
 use core::panic::PanicInfo;
 use usrlib::user_api::{
     usr_clear_screen, usr_draw_cursor, usr_erase_char, usr_erase_cursor, usr_get_key, usr_map_heap,
-    usr_reboot, usr_spawn_process, usr_thread_exit,
+    usr_reboot, usr_spawn_process, usr_thread_exit, usr_wait_pid,
 };
 use usrlib::{allocator, term_print, term_print_colored, term_println, term_println_colored};
 
@@ -61,7 +61,10 @@ impl Shell {
             "panic" => panic!("User triggered panic!"),
             "" => {} // Ignore empty input
             _ => {
-                if usr_spawn_process(command.as_str(), args_str.as_str()) == 0 {
+                let pid = usr_spawn_process(command.as_str(), args_str.as_str());
+                if pid > 0 {
+                    usr_wait_pid(pid);
+                } else {
                     term_println_colored!(RED, "Error: Command not found '{}'", command);
                 }
             }

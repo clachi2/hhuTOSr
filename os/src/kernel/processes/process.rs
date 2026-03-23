@@ -86,3 +86,7 @@ pub fn dump_process_vmas(process_id: usize) {
     }
 }
 
+pub fn is_process_alive(pid: usize) -> bool {
+    PROCESSES.lock().contains_key(&pid)
+}
+

@@ -20,6 +20,7 @@ pub enum SyscallFunction {
     ThreadExit,
     ThreadGetId,
     ProcessGetId,
+    WaitPid,
     DumpVmas,
     MapHeap,
     GetSystemTime,
@@ -60,6 +61,12 @@ pub fn usr_thread_get_id() -> usize {
 
 pub fn usr_process_get_id() -> usize {
     syscall0(SyscallFunction::ProcessGetId) as usize
+}
+
+pub fn usr_wait_pid(pid: usize) {
+    while syscall1(SyscallFunction::WaitPid, pid as u64) == 1 {
+        usr_thread_yield();
+    }
 }
 
 pub fn usr_dump_vmas() {

@@ -3,7 +3,7 @@
  *
  * Description: All system calls are routed here via the IDT syscall handler (interrupt 0x80).
  *              The system call number is passed in the rax register and is used as index into
-    *              the syscall table to call the corresponding function.
+ *              the syscall table to call the corresponding function.
  *
  * Author: Stefan Lankes, RWTH Aachen University
  *         Licensed under the Apache License, Version 2.0 or MIT license, at your option.
@@ -12,12 +12,19 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 15.10.2025
  */
 
-use core::arch::{naked_asm};
-use nolock::queues::mpsc::jiffy::queue;
 use crate::kernel::syscalls::functions::functions::{sys_get_system_time, sys_reboot};
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
-use crate::kernel::syscalls::functions::io::{sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor, sys_get_char, sys_get_key, sys_kprint, sys_kprintln, sys_print, sys_println, sys_term_print, sys_term_print_at, sys_term_print_colored};
-use crate::kernel::syscalls::functions::thread::{sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_spawn_process, sys_thread_exit, sys_thread_get_id, sys_thread_yield};
+use crate::kernel::syscalls::functions::io::{
+    sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor, sys_get_char, sys_get_key,
+    sys_kprint, sys_kprintln, sys_print, sys_println, sys_term_print, sys_term_print_at,
+    sys_term_print_colored,
+};
+use crate::kernel::syscalls::functions::thread::{
+    sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_spawn_process, sys_thread_exit,
+    sys_thread_get_id, sys_thread_yield, sys_wait_pid,
+};
+use core::arch::naked_asm;
+use nolock::queues::mpsc::jiffy::queue;
 use usrlib::user_api::SyscallFunction;
 
 /// Global syscall function table.
@@ -39,6 +46,7 @@ impl SyscallFunctionTable {
                 sys_thread_exit as *const u64,
                 sys_thread_get_id as *const u64,
                 sys_process_get_id as *const u64,
+                sys_wait_pid as *const u64,
                 sys_dump_vmas as *const u64,
                 sys_map_heap as *const u64,
                 sys_get_system_time as *const u64,

@@ -273,7 +273,7 @@ impl Scheduler {
     }
 
     /// Legt einen neuen Prozess an und startet ihn in einem User-Thread.
-    pub fn spawn_process(&self, app_name: &str, args_str: &str) -> bool {
+    pub fn spawn_process(&self, app_name: &str, args_str: &str) -> u64 {
         let process = Process::new(app_name);
         let pid = process.get_id();
         add_process(process);
@@ -316,13 +316,13 @@ impl Scheduler {
             String::from(app_name)
         );
         if thread.is_none(){
-            return false;
+            return 0;
         }
         let mut unwrapped_thread = thread.unwrap();
 
         unwrapped_thread.set_pid(pid);
         self.ready(unwrapped_thread);
-        true
+        pid as u64
     }
 }
 

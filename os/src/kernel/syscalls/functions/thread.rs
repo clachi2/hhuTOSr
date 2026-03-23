@@ -2,6 +2,7 @@ use alloc::string::String;
 use crate::devices::terminal::get_terminal;
 use crate::kernel::paging::pages;
 use crate::kernel::processes::process;
+use crate::kernel::processes::process::is_process_alive;
 use crate::kernel::processes::vma::{VmaType, VMA};
 use crate::kernel::threads::scheduler::get_scheduler;
 
@@ -42,7 +43,7 @@ pub extern "C" fn sys_map_heap(user_heap_start: u64, user_heap_size: usize) {
 }
 
 pub extern "C" fn sys_spawn_process(buffer_proc: *const u8, len_proc: usize, buffer_args: *const u8, len_args: usize) -> u64 {
-    let mut success = false;
+    let mut success = 0;
     let slice_proc = unsafe { core::slice::from_raw_parts(buffer_proc, len_proc) };
     if let Ok(app_name) = core::str::from_utf8(slice_proc) {
         let slice_args = unsafe { core::slice::from_raw_parts(buffer_args, len_args) };
@@ -51,4 +52,12 @@ pub extern "C" fn sys_spawn_process(buffer_proc: *const u8, len_proc: usize, buf
         }
     }
     success as u64
+}
+
+pub extern "C" fn sys_wait_pid(pid: u64) -> u64 {
+    if is_process_alive(pid as usize) {
+        1
+    } else {
+        0
+    }
 }
