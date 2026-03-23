@@ -30,3 +30,45 @@ macro_rules! println {
      ($fmt:expr) => (print!(concat!($fmt, "\n")));
      ($fmt:expr, $($arg:tt)*) => (print!(concat!($fmt, "\n"), $($arg)*));
  }
+
+#[macro_export]
+macro_rules! term_print {
+    ($($arg:tt)*) => {{
+        let s = alloc::format!($($arg)*);
+        $crate::user_api::usr_term_print(&s);
+    }};
+}
+
+#[macro_export]
+macro_rules! term_println {
+    () => ($crate::print!("\n"));
+    ($($arg:tt)*) => ($crate::term_print!("{}\n", core::format_args!($($arg)*)));
+}
+
+#[macro_export]
+macro_rules! term_print_at {
+    ($x:expr, $y:expr, $($arg:tt)*) => {{
+        let s = alloc::format!($($arg)*);
+        $crate::user_api::usr_term_print_at($x, $y, &s);
+    }};
+}
+
+#[macro_export]
+macro_rules! term_println_at {
+    ($x:expr, $y:expr, $($arg:tt)*) => {
+        $crate::term_print_at!($x, $y, "{}\n", core::format_args!($($arg)*));
+    };
+}
+
+#[macro_export]
+macro_rules! term_print_colored {
+    ($color:expr, $($arg:tt)*) => {{
+        let s = alloc::format!($($arg)*);
+        $crate::user_api::usr_term_print_colored($color, &s);
+    }};
+}
+
+#[macro_export]
+macro_rules! term_println_colored {
+    ($color:expr, $($arg:tt)*) => ($crate::term_print_colored!($color, "{}\n", core::format_args!($($arg)*)));
+}

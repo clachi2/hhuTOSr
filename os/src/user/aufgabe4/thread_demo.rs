@@ -6,7 +6,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use nolock::queues::mpsc::jiffy::queue;
 
-fn thread_entry(args: &[String]) {
+fn thread_entry(args: &[&str]) {
     let id = get_scheduler().get_active_tid();
     let mut count = 0;
 

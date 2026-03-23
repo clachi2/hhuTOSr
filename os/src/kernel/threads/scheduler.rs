@@ -273,10 +273,15 @@ impl Scheduler {
     }
 
     /// Legt einen neuen Prozess an und startet ihn in einem User-Thread.
-    pub fn spawn_process(&self, app_name: &str) {
+    pub fn spawn_process(&self, app_name: &str, args_str: &str) -> bool {
         let process = Process::new(app_name);
         let pid = process.get_id();
         add_process(process);
+
+        let args: Vec<String> = args_str
+            .split_whitespace()
+            .map(|s| s.to_string())
+            .collect();
 
         let mb_info = MULTIBOOT_INFO.get().expect("Multiboot info missing");
         let archive = mb_info.get_initrd_archive().expect("Initrd missing");
@@ -307,12 +312,17 @@ impl Scheduler {
 
         let mut thread = Thread::new_user_thread(
             app_name,
-            Vec::new(),
+            args,
             String::from(app_name)
         );
+        if thread.is_none(){
+            return false;
+        }
+        let mut unwrapped_thread = thread.unwrap();
 
-        thread.set_pid(pid);
-        self.ready(thread);
+        unwrapped_thread.set_pid(pid);
+        self.ready(unwrapped_thread);
+        true
     }
 }
 

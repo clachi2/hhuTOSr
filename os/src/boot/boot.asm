@@ -12,7 +12,7 @@
 ;
 
 ; Comment out to boot in graphical mode
-%define TEXT_MODE
+;%define TEXT_MODE
 
 ; Load address of the kernel (1 MiB - Must be consistent with the linker script)
 KERNEL_START: equ 0x100000

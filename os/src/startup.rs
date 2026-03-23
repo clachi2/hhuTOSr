@@ -69,6 +69,7 @@ use user::aufgabe2::heap_demo;
 use user::aufgabe2::sound_demo;
 use user::aufgabe3::keyboard_demo as aufgabe3_keyboard_demo;
 use user::aufgabe4::coroutine_demo;
+use crate::devices::terminal::init_terminal;
 use crate::kernel::paging::frames::FRAME_ALLOCATOR;
 use crate::user::aufgabe12::process_test::aufgabe12_test;
 
@@ -175,12 +176,17 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                     framebuffer_info.bpp,
                 );
 
+                init_terminal();
                 let scheduler = get_scheduler();
-                let shell = Thread::new_kernel_thread(shell_thread, Vec::new(), String::from("shell"));
-                let spinner = Thread::new_kernel_thread(spinner, vec![String::from("250")], String::from("spinner"), );
-                scheduler.ready(shell);
-                scheduler.ready(spinner);
+                scheduler.spawn_process("shell", "");
                 scheduler.schedule();
+
+                // let scheduler = get_scheduler();
+                // let shell = Thread::new_kernel_thread(shell_thread, Vec::new(), String::from("shell"));
+                // let spinner = Thread::new_kernel_thread(spinner, vec![String::from("250")], String::from("spinner"), );
+                // scheduler.ready(shell);
+                // scheduler.ready(spinner);
+                // scheduler.schedule();
 
                 // graphic_demo::run();
             }

@@ -21,7 +21,7 @@ pub fn thread_test() {
     scheduler.schedule();
 }
 
-fn kernel_test_thread(_args: &[String]) {
+fn kernel_test_thread(_args: &[&str]) {
     let id = get_scheduler().get_active_tid();
 
     for i in 0..cga::CGA_COLUMNS {
@@ -35,7 +35,7 @@ fn kernel_test_thread(_args: &[String]) {
     }
 }
 
-fn user_test_thread(_args: &[String]) {
+fn user_test_thread(_args: &[&str]) {
     let id = get_scheduler().get_active_tid();
     
     for i in 0..cga::CGA_COLUMNS {

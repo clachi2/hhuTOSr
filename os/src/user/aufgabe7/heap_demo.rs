@@ -11,7 +11,7 @@ struct TestStruct {
     y: u32,
 }
 
-pub fn heap_demo(args: &[String]) {
+pub fn heap_demo(args: &[&str]) {
     shell_println!("Starte Heap-Demo...\n");
     shell_println!("\n========================================\n");
     shell_println!("Demo 1/4: 2 Structs dynamisch allozieren\n");

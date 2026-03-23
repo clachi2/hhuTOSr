@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 use alloc::{format, vec};
 use nolock::queues::mpsc::jiffy::queue;
 
-fn thread_entry(args: &[String]) {
+fn thread_entry(args: &[&str]) {
     let mut num = args[0].parse::<u32>().unwrap_or(0);
     let column = num / 33;
     num = num % 33;
@@ -55,7 +55,7 @@ fn thread_music() {
     tetris();
 }
 
-pub fn thread_demo(args: &[String]) {
+pub fn thread_demo(args: &[&str]) {
     let num_threads = args
         .get(0)
         .and_then(|s| s.parse::<usize>().ok())

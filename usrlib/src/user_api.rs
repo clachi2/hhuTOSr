@@ -9,7 +9,7 @@
  *         Michael Schoettner, Heinrich Heine University Duesseldorf, 14.09.2023
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 15.10.2025
  */
-
+use alloc::format;
 use core::arch::asm;
 
 /// System call numbers available to user programs.
@@ -28,6 +28,16 @@ pub enum SyscallFunction {
     Kprint,
     Kprintln,
     GetChar,
+    GetKey,
+    TermPrint,
+    TermPrintColored,
+    TermPrintAt,
+    ClearScreen,
+    DrawCursor,
+    EraseCursor,
+    EraseChar,
+    Reboot,
+    SpawnProcess,
     NumSyscalls, // Last entry to count number of syscalls
 }
 
@@ -96,6 +106,78 @@ pub fn usr_kprintln(msg: &str) {
 
 pub fn usr_get_char() -> char {
     (syscall0(SyscallFunction::GetChar) as u8) as char
+}
+
+pub struct Key {
+    pub asc: u8,  // ASCII code
+    pub scan: u8, // scan code
+    pub modi: u8, // modifier
+}
+
+pub fn usr_get_key() -> Key {
+    let key = syscall0(SyscallFunction::GetKey);
+    Key {
+        asc: (key >> 0) as u8,
+        scan: (key >> 8) as u8,
+        modi: (key >> 16) as u8,
+    }
+}
+
+pub fn usr_term_print(msg: &str) {
+    syscall2(
+        SyscallFunction::TermPrint,
+        msg.as_ptr() as u64,
+        msg.len() as u64,
+    );
+}
+
+pub fn usr_term_print_colored(color: u32, msg: &str) {
+    syscall3(
+        SyscallFunction::TermPrintColored,
+        color as u64,
+        msg.as_ptr() as u64,
+        msg.len() as u64,
+    );
+}
+
+pub fn usr_term_print_at(x: u32, y: u32, msg: &str) {
+    syscall4(
+        SyscallFunction::TermPrintAt,
+        x as u64,
+        y as u64,
+        msg.as_ptr() as u64,
+        msg.len() as u64,
+    );
+}
+
+pub fn usr_clear_screen() {
+    syscall0(SyscallFunction::ClearScreen);
+}
+
+pub fn usr_draw_cursor() {
+    syscall0(SyscallFunction::DrawCursor);
+}
+
+pub fn usr_erase_cursor() {
+    syscall0(SyscallFunction::EraseCursor);
+}
+
+pub fn usr_erase_char() {
+    syscall0(SyscallFunction::EraseChar);
+}
+
+pub fn usr_reboot() {
+    syscall0(SyscallFunction::Reboot);
+}
+
+pub fn usr_spawn_process(path: &str, args: &str) -> usize {
+    syscall4(
+        SyscallFunction::SpawnProcess,
+        path.as_ptr() as u64,
+        path.len() as u64,
+        args.as_ptr() as u64,
+        args.len() as u64,
+    ) as usize
 }
 
 /// Perform a system call with 0 arguments.

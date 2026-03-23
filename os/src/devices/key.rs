@@ -57,6 +57,7 @@ impl Key {
     pub fn set_scancode(&mut self, s: u8) { self.scan = s; }
     pub fn get_ascii(&self) -> u8 { self.asc }
     pub fn get_scancode(&self) -> u8 { self.scan }
+    pub fn get_modi(&self) -> u8 { self.modi }
 
     // Functions for manipulating the modifier bits
     pub fn set_shift(&mut self, pressed: bool) {

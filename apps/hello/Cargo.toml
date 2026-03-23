@@ -2,7 +2,7 @@
 edition = "2024"
 name = "hello"
 version = "0.1.0"
-authors = ["Michael Schöttner <michael.schoettner@hhu.de>"]
+authors = ["Rafael Reip"]
 
 [lib]
 crate-type = ["staticlib"]

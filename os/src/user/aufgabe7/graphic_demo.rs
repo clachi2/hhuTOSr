@@ -7,7 +7,7 @@ use crate::user::aufgabe7::bmp_hhu;
 
 const MESSAGE: &str = "Welcome to corrodingOS! Press any key to continue...";
 
-pub fn draw_demo(args: &[String]) {
+pub fn draw_demo(args: &[&str]) {
     let dimensions = get_lfb().lock().get_dimensions();
 
     // Fill the framebuffer with a gradient

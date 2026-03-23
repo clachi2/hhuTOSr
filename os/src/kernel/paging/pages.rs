@@ -199,8 +199,6 @@ pub fn init_kernel_tables() -> &'static mut PageTable {
                 .as_mut()
                 .unwrap();
 
-        // ptr::write_bytes(pml4 as *mut PageTable as *mut u8, 0, PAGE_SIZE);
-
         pml4.map(0, num_pages, MapType::Identity, true);
 
         if let Some(mb_info) = MULTIBOOT_INFO.get() {

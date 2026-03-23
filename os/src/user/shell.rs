@@ -25,7 +25,7 @@ const PROMPT_COLOR: u32 = HHU_GREEN;
 const TEXT_COLOR: u32 = WHITE;
 const HIGHLIGHT_COLOR: u32 = HHU_RED;
 
-pub fn shell_thread(args: &[String]) {
+pub fn shell_thread(args: &[&str]) {
     let mut shell = Shell::new();
     shell.run();
 }
@@ -104,7 +104,7 @@ impl Shell {
 
     fn execute_command_thread(
         &mut self,
-        program: fn(&[String]),
+        program: fn(&[&str]),
         args: Vec<String>,
         is_graphic: bool,
         wait: bool,

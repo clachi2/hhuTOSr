@@ -8,7 +8,6 @@
 */
 use crate::devices::cga;
 use crate::devices::cga::{CGA, Color};
-use crate::devices::lfb::{HHU_RED, is_lfb_initialized, LFB, get_lfb};
 use usrlib::allocator::ALLOCATOR;
 use crate::kernel::cpu;
 use crate::kernel::cpu::IoPort;

@@ -1,12 +1,12 @@
 [package]
 edition = "2024"
-name = "syscalltest"
-version = "0.1.0"
+name = "echo"
+version = "1.0.0"
 authors = ["Rafael Reip"]
 
 [lib]
 crate-type = ["staticlib"]
-path = "src/syscalltest.rs"
+path = "src/echo.rs"
 
 [dependencies]
 usrlib = { path = "../../usrlib" }

@@ -30,7 +30,7 @@ fn usr_print_num(mut n: usize) {
     }
 }
 
-fn syscall_test_thread(_args: &[String]) {
+fn syscall_test_thread(_args: &[&str]) {
     usr_hello_world();
 
     let id = usr_thread_get_id();

@@ -118,6 +118,7 @@ unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: us
 unsafe extern "C" fn thread_user_start(stack_ptr: usize) {
     naked_asm!(
         "mov rsp, rdi", // Switch stack
+        "pop rsi",
         "pop rdi",
         "iretq" // Return to user mode
     )
@@ -135,14 +136,14 @@ pub struct Thread {
     kernel_stack: Vec<u64>,
     stack_ptr: usize, // Pointer on the stack to the saved context
     pml4: &'static mut PageTable,
-    entry: fn(&[String]),
+    entry: fn(&[&str]),
     args: Vec<String>,
     name: String,
 }
 
 impl Thread {
     /// Create a new thread with the given entry function.
-    pub fn new_kernel_thread(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
+    pub fn new_kernel_thread(entry: fn(&[&str]), args: Vec<String>, name: String) -> Box<Thread> {
         // Allocate memory for the kernel stack and initialize it to zero
         let mut kernel_stack = Vec::<u64>::with_capacity(STACK_SIZE / 8);
         for _ in 0..kernel_stack.capacity() {
@@ -173,7 +174,7 @@ impl Thread {
         thread
     }
 
-    pub fn new_user_thread_old(entry: fn(&[String]), args: Vec<String>, name: String) -> Box<Thread> {
+    pub fn new_user_thread_old(entry: fn(&[&str]), args: Vec<String>, name: String) -> Box<Thread> {
         let mut thread = Self::new_kernel_thread(entry, args, name);
 
         thread.is_kernel_thread = false;
@@ -183,8 +184,8 @@ impl Thread {
         thread
     }
 
-    pub fn new_user_thread(app_name: &str, args: Vec<String>, name: String) -> Box<Thread> {
-        let entry: fn(&[String]) = unsafe { core::mem::transmute(consts::USER_CODE_VIRT_START) };
+    pub fn new_user_thread(app_name: &str, args: Vec<String>, name: String) -> Option<Box<Thread>> {
+        let entry: fn(&[&str]) = unsafe { core::mem::transmute(consts::USER_CODE_VIRT_START) };
 
         let mut thread = Self::new_kernel_thread(entry, args, name);
         thread.is_kernel_thread = false;
@@ -192,13 +193,14 @@ impl Thread {
         // anwendung laden und mappen
         unsafe {
             if !pages::map_user_app(thread.pml4, app_name) {
-                panic!("App '{}' not found in TAR archive!", app_name);
+                // panic!("App '{}' not found in TAR archive!", app_name);
+                return None;
             }
         }
 
         unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
 
-        thread
+        Some(thread)
     }
 
     /// Start the thread.
@@ -272,20 +274,49 @@ impl Thread {
     /// switches to user mode (Ring 3) and the user stack is used. If this function works correctly,
     /// the thread continues in user mode in the function 'kickoff_user_thread'.
     fn switch_to_usermode(&mut self) {
-        let user_stack_top = USER_STACK_VIRT_END as u64;
-        let entry_addr = self.entry as u64;
-        // let user_kickoff_addr = Thread::kickoff_user_thread as u64;
-        // let self_ptr = ptr::from_mut(self) as u64;
-        let kernel_stack_top_addr = Self::get_top_of_stack(&self.kernel_stack) as usize;
-        let len = self.kernel_stack.len();
+        let mut user_stack_ptr = USER_STACK_VIRT_END as u64;
+        let mut user_str_infos = Vec::with_capacity(self.args.len());
 
+        // copy args to user stack
+        for arg in self.args.iter().rev() { // rev() so arg 0 is ontop
+            let bytes = arg.as_bytes();
+            user_stack_ptr -= bytes.len() as u64;
+
+            unsafe {
+                ptr::copy_nonoverlapping(
+                    bytes.as_ptr(),
+                    user_stack_ptr as *mut u8,
+                    bytes.len()
+                );
+            }
+            user_str_infos.push((user_stack_ptr, bytes.len()));
+        }
+        user_str_infos.reverse(); // because .rev()
+
+        // array of &str (ptr, len) (each 16 bytes -> 16-byte aligned)
+        user_stack_ptr -= (self.args.len() * 16) as u64;
+        user_stack_ptr &= !0xF;
+        let array_base = user_stack_ptr;
+
+        for (i, (addr, len)) in user_str_infos.into_iter().enumerate() {
+            let entry_ptr = (array_base + (i * 16) as u64) as *mut u64;
+            unsafe {
+                entry_ptr.offset(0).write_volatile(addr); // .ptr
+                entry_ptr.offset(1).write_volatile(len as u64); // .len
+            }
+        }
+
+        let len = self.kernel_stack.len();
+        let kernel_stack_top_addr = Self::get_top_of_stack(&self.kernel_stack) as usize;
         self.kernel_stack[len - 1] = (5 << 3) | 3; // SS (User Data Selector) -> index 5, RPL=3
-        self.kernel_stack[len - 2] = user_stack_top; // RSP (User Stack Pointer)
+        self.kernel_stack[len - 2] = user_stack_ptr; // RSP (User Stack Pointer)
         self.kernel_stack[len - 3] = 0x200; // RFLAGS (Bit 9 = Interrupt Flag set)
         self.kernel_stack[len - 4] = (4 << 3) | 3; // CS (User Code Selector) -> index 4, RPL=3
-        self.kernel_stack[len - 5] = entry_addr;
+        self.kernel_stack[len - 5] = self.entry as u64;
+        self.kernel_stack[len - 6] = array_base;
+        self.kernel_stack[len - 7] = self.args.len() as u64;
 
-        let stack_ptr = kernel_stack_top_addr - (6 * STACK_ENTRY_SIZE);
+        let stack_ptr = kernel_stack_top_addr - (7 * STACK_ENTRY_SIZE);
         unsafe {
             thread_user_start(stack_ptr);
         }
@@ -301,7 +332,8 @@ impl Thread {
 
         if self.is_kernel_thread {
             cpu::enable_int(); // interrupts are disabled during thread start
-            ((*self).entry)(&self.args);
+            let arg_refs: Vec<&str> = self.args.iter().map(|s| s.as_str()).collect();
+            ((*self).entry)(&arg_refs);
         } else {
             self.switch_to_usermode();
         }
@@ -312,7 +344,8 @@ impl Thread {
     /// Called indirectly by using the prepared stack in 'switch_to_usermode'.
     /// At this point, the thread is in user mode (Ring 3) and its entry function is called.
     fn kickoff_user_thread(&self) {
-        (self.entry)(&self.args);
+        let arg_refs: Vec<&str> = self.args.iter().map(|s| s.as_str()).collect();
+        (self.entry)(&arg_refs);
         usr_thread_exit();
     }
 

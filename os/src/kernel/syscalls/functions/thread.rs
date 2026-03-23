@@ -1,3 +1,5 @@
+use alloc::string::String;
+use crate::devices::terminal::get_terminal;
 use crate::kernel::paging::pages;
 use crate::kernel::processes::process;
 use crate::kernel::processes::vma::{VmaType, VMA};
@@ -37,4 +39,16 @@ pub extern "C" fn sys_map_heap(user_heap_start: u64, user_heap_size: usize) {
         VmaType::Heap
     );
     let _ = process::add_vma(pid, heap_vma);
+}
+
+pub extern "C" fn sys_spawn_process(buffer_proc: *const u8, len_proc: usize, buffer_args: *const u8, len_args: usize) -> u64 {
+    let mut success = false;
+    let slice_proc = unsafe { core::slice::from_raw_parts(buffer_proc, len_proc) };
+    if let Ok(app_name) = core::str::from_utf8(slice_proc) {
+        let slice_args = unsafe { core::slice::from_raw_parts(buffer_args, len_args) };
+        if let Ok(args) = core::str::from_utf8(slice_args) {
+            success = get_scheduler().spawn_process(app_name, args);
+        }
+    }
+    success as u64
 }

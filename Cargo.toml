@@ -4,5 +4,7 @@ resolver = "2"
 members = [
     "os",
     "apps/hello",
-    "apps/syscalltest"
+    "apps/syscalltest",
+    "apps/shell",
+    "apps/echo",
 ]

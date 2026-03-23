@@ -7,7 +7,7 @@ use crate::kernel::threads::scheduler::get_scheduler;
 use crate::kernel::threads::thread::Thread;
 use usrlib::stack_string::StackString;
 
-fn isolation_test_thread(args: &[String]) {
+fn isolation_test_thread(args: &[&str]) {
     let thread_name = if args.len() > 0 { &args[0] } else { "Unknown" };
     let mut counter: u64 = 0;
     if thread_name == "A" {

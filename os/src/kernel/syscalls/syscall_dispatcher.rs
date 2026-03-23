@@ -13,10 +13,11 @@
  */
 
 use core::arch::{naked_asm};
-use crate::kernel::syscalls::functions::functions::sys_get_system_time;
+use nolock::queues::mpsc::jiffy::queue;
+use crate::kernel::syscalls::functions::functions::{sys_get_system_time, sys_reboot};
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
-use crate::kernel::syscalls::functions::io::{sys_get_char, sys_kprint, sys_kprintln, sys_print, sys_println};
-use crate::kernel::syscalls::functions::thread::{sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_thread_exit, sys_thread_get_id, sys_thread_yield};
+use crate::kernel::syscalls::functions::io::{sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor, sys_get_char, sys_get_key, sys_kprint, sys_kprintln, sys_print, sys_println, sys_term_print, sys_term_print_at, sys_term_print_colored};
+use crate::kernel::syscalls::functions::thread::{sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_spawn_process, sys_thread_exit, sys_thread_get_id, sys_thread_yield};
 use usrlib::user_api::SyscallFunction;
 
 /// Global syscall function table.
@@ -46,6 +47,16 @@ impl SyscallFunctionTable {
                 sys_kprint as *const u64,
                 sys_kprintln as *const u64,
                 sys_get_char as *const u64,
+                sys_get_key as *const u64,
+                sys_term_print as *const u64,
+                sys_term_print_colored as *const u64,
+                sys_term_print_at as *const u64,
+                sys_clear_screen as *const u64,
+                sys_draw_cursor as *const u64,
+                sys_erase_cursor as *const u64,
+                sys_erase_char as *const u64,
+                sys_reboot as *const u64,
+                sys_spawn_process as *const u64,
             ],
         }
     }

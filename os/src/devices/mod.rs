@@ -13,4 +13,5 @@ pub mod pit;
 pub mod lfb;
 pub mod pci;
 pub mod font_8x8;
+pub mod terminal;
 

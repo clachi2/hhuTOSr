@@ -3,7 +3,7 @@ use crate::devices::lfb::get_lfb;
 use crate::devices::mouse::get_mouse_buffer;
 use alloc::string::String;
 
-pub fn mouse_demo(args: &[String]) {
+pub fn mouse_demo(args: &[&str]) {
     let (x, y) = get_lfb().lock().get_dimensions();
     let mut mouse_x = 0;
     let mut mouse_y = 0;

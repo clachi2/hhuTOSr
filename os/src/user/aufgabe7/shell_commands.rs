@@ -5,7 +5,7 @@ use crate::kernel::threads::scheduler::get_scheduler;
 use crate::{devices, shell_print, shell_println};
 use alloc::string::String;
 
-pub fn cmd_echo(args: &[String]) {
+pub fn cmd_echo(args: &[&str]) {
     for (i, arg) in args.iter().enumerate() {
         shell_print!("{}", arg);
         if i < args.len() - 1 {
@@ -15,7 +15,7 @@ pub fn cmd_echo(args: &[String]) {
     shell_print!("\n");
 }
 
-pub fn cmd_time(args: &[String]) {
+pub fn cmd_time(args: &[&str]) {
     let time = get_system_time();
     if time < 1000 {
         shell_println!("uptime: {} ms", time);
@@ -37,7 +37,7 @@ pub fn cmd_time(args: &[String]) {
     }
 }
 
-pub fn cmd_numbers(args: &[String]) {
+pub fn cmd_numbers(args: &[&str]) {
     shell_println!(" ");
     shell_println!("| Decimal | Hexadecimal | Binary    |");
     shell_println!("-------------------------------------");
@@ -47,7 +47,7 @@ pub fn cmd_numbers(args: &[String]) {
     shell_println!(" ");
 }
 
-pub fn cmd_pci_list(args: &[String]) {
+pub fn cmd_pci_list(args: &[&str]) {
     let devices = get_pci_bus();
     if devices.iter().count() == 0 {
         shell_println!("No PCI devices found.");
@@ -65,7 +65,7 @@ pub fn cmd_pci_list(args: &[String]) {
     }
 }
 
-pub fn cmd_network(args: &[String]) {
+pub fn cmd_network(args: &[&str]) {
     // Just a short demo to show how to access PCI devices
     // For more information, see the OsDev Wiki: https://wiki.osdev.org/PCI, https://wiki.osdev.org/RTL8139
     let rtl8139 = get_pci_bus()
@@ -126,11 +126,11 @@ pub fn cmd_network(args: &[String]) {
     }
 }
 
-pub fn cmd_ps(args: &[String]) {
+pub fn cmd_ps(args: &[&str]) {
     shell_println!("{}", get_scheduler().to_string())
 }
 
-pub fn cmd_kill(args: &[String]) {
+pub fn cmd_kill(args: &[&str]) {
     if args.len() < 1 {
         shell_println!("Usage: kill <pid>");
         return;

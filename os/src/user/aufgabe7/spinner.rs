@@ -5,7 +5,7 @@ use crate::kernel::threads::scheduler::get_scheduler;
 
 static SPINNER_CHARS: &[char] = &['|', '/', '-', '\\'];
 
-pub fn spinner(args: &[String]) {
+pub fn spinner(args: &[&str]) {
     let delta_time = args
         .get(0)
         .and_then(|s| s.parse::<usize>().ok())
