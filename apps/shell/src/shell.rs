@@ -8,7 +8,7 @@ use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::panic::PanicInfo;
-use usrlib::user_api::{usr_clear_screen, usr_draw_cursor, usr_dump_vmas, usr_erase_char, usr_erase_cursor, usr_get_key, usr_get_system_time, usr_map_heap, usr_process_count, usr_reboot, usr_spawn_process, usr_spawn_thread, usr_thread_count, usr_thread_exit, usr_wait_pid};
+use usrlib::user_api::{usr_clear_screen, usr_draw_cursor, usr_dump_vmas, usr_erase_char, usr_erase_cursor, usr_get_key, usr_get_system_time, usr_map_heap, usr_process_count, usr_ps, usr_reboot, usr_spawn_process, usr_spawn_thread, usr_thread_count, usr_thread_exit, usr_wait_pid};
 use usrlib::{allocator, term_print, term_print_at, term_print_colored, term_println, term_println_colored};
 use crate::spinner::spinner;
 

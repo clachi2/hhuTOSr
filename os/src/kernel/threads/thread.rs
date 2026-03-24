@@ -269,6 +269,14 @@ impl Thread {
         self.name.clone()
     }
 
+    pub fn get_pid(&self) -> usize {
+        self.pid
+    }
+
+    pub fn set_pid(&mut self, pid: usize) {
+        self.pid = pid;
+    }
+
     /// Prepare the stack of a newly created thread in a way that it can be used
     /// to return to the 'kickoff' function with the thread itself as parameter.
     /// The prepared stack is used in 'thread_start' to start the first thread.
@@ -386,14 +394,6 @@ impl Thread {
         unsafe {
             ptr::from_ref(&stack[stack.len() - 1]).offset(1)
         }
-    }
-
-    pub fn get_pid(&self) -> usize {
-        self.pid
-    }
-
-    pub fn set_pid(&mut self, pid: usize) {
-        self.pid = pid;
     }
 }
 

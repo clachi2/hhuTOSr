@@ -19,7 +19,7 @@ use crate::kernel::syscalls::functions::io::{
     sys_kprint, sys_kprintln, sys_print, sys_println, sys_term_print, sys_term_print_at,
     sys_term_print_colored,
 };
-use crate::kernel::syscalls::functions::thread::{sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_spawn_process, sys_spawn_thread, sys_thread_exit, sys_thread_get_id, sys_thread_yield, sys_wait_pid};
+use crate::kernel::syscalls::functions::thread::{sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_ps, sys_spawn_process, sys_spawn_thread, sys_thread_exit, sys_thread_get_id, sys_thread_yield, sys_wait_pid};
 use core::arch::naked_asm;
 use nolock::queues::mpsc::jiffy::queue;
 use usrlib::user_api::SyscallFunction;
@@ -65,6 +65,7 @@ impl SyscallFunctionTable {
                 sys_spawn_thread as *const u64,
                 sys_thread_count as *const u64,
                 sys_process_count as *const u64,
+                sys_ps as *const u64,
             ],
         }
     }

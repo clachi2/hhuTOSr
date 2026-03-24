@@ -42,6 +42,7 @@ pub enum SyscallFunction {
     SpawnThread,
     ThreadCount,
     ProcessCount,
+    PS,
     NumSyscalls, // Last entry to count number of syscalls
 }
 
@@ -205,6 +206,10 @@ pub fn usr_thread_count() -> usize {
 
 pub fn usr_process_count() -> usize {
     syscall0(SyscallFunction::ProcessCount) as usize
+}
+
+pub fn usr_ps() {
+    syscall0(SyscallFunction::PS);
 }
 
 /// Perform a system call with 0 arguments.

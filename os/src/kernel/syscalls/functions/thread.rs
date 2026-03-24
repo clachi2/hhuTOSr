@@ -1,3 +1,4 @@
+use alloc::fmt::format;
 use crate::consts;
 use crate::devices::terminal::get_terminal;
 use crate::kernel::paging::pages;
@@ -88,7 +89,7 @@ pub extern "C" fn sys_spawn_thread(entry_ptr: u64, args_ptr: *const u8, args_len
         let new_thread = Thread::new_user_thread_existing_process(
             entry,
             args,
-            format!("{}_tid{}", pid, thread_idx),
+            format!("{}_{}", pid, thread_idx),
             pml4,
             pid,
             new_stack_end,
@@ -100,5 +101,11 @@ pub extern "C" fn sys_spawn_thread(entry_ptr: u64, args_ptr: *const u8, args_len
         return tid as u64;
     }
     kprintln!("Error: Argumente konnten nicht gelesen werden!");
+    0
+}
+
+pub extern "C" fn sys_ps() -> u64 {
+    let ps_str = get_scheduler().to_string();
+    get_terminal().lock().print_string(format!("{}\n", ps_str).as_str());
     0
 }

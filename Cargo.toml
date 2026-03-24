@@ -7,4 +7,5 @@ members = [
     "apps/syscalltest",
     "apps/shell",
     "apps/echo",
+    "apps/ps",
 ]

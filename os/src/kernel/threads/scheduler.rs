@@ -56,7 +56,7 @@ pub unsafe extern "C" fn unlock_scheduler() {
 struct SchedulerState {
     active_thread: Option<Box<Thread>>,
     ready_queue: LinkedQueue<Box<Thread>>,
-    alive_threads: Vec<(usize, String)>,
+    alive_threads: Vec<(usize, usize, String)>,
 }
 
 /// Represents the scheduler.
@@ -108,7 +108,7 @@ impl Scheduler {
         let mut state = self.state.lock();
         state
             .alive_threads
-            .push((thread.get_id(), thread.get_name()));
+            .push((thread.get_id(), thread.get_pid(), thread.get_name()));
         state.ready_queue.enqueue(thread);
     }
 
@@ -127,7 +127,7 @@ impl Scheduler {
 
         state
             .alive_threads
-            .retain(|&(id, ref name)| id != current.get_id());
+            .retain(|&(id, pid, ref name)| id != current.get_id());
 
         let pid = current.get_pid();
         if pid != 0{
@@ -192,7 +192,7 @@ impl Scheduler {
             .remove(|thread| thread.get_id() == to_kill_id);
         state
             .alive_threads
-            .retain(|&(id, ref name)| id != to_kill_id);
+            .retain(|&(id, pid, ref name)| id != to_kill_id);
     }
 
     /// Check if the scheduler state is currently locked.
@@ -247,7 +247,7 @@ impl Scheduler {
     pub fn wait_on_thread(&self, id: usize) {
         loop {
             if let Some(state) = self.state.try_lock() {
-                if !state.alive_threads.iter().any(|&(tid, _)| tid == id) {
+                if !state.alive_threads.iter().any(|&(tid, _, _)| tid == id) {
                     return;
                 }
             }
@@ -265,7 +265,7 @@ impl Scheduler {
             .lock()
             .alive_threads
             .iter()
-            .map(|(id, name)| format!("   {}: {}", id, name))
+            .map(|(id, pid, name)| format!("   tid:{}, pid:{}, name:{}", id, pid, name))
             .collect::<Vec<String>>()
             .join("\n");
 
