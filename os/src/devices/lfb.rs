@@ -1,8 +1,8 @@
+use crate::devices::font_8x8;
+use crate::library::mutex::Mutex;
 use alloc::string::ToString;
 use core::sync::atomic::AtomicBool;
 use spin::Once;
-use crate::devices::font_8x8;
-use crate::library::mutex::Mutex;
 
 /// Global Linear Framebuffer (LFB) instance.
 static LFB: Once<Mutex<LFB>> = Once::new();
@@ -11,9 +11,7 @@ static IS_LFB_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 /// Initialize the Linear Framebuffer (LFB).
 pub fn init_lfb(addr: *mut u8, pitch: u32, width: u32, height: u32, bpp: u8) {
-    LFB.call_once(|| { 
-        Mutex::new(LFB::new(addr, pitch, width, height, bpp))
-    });
+    LFB.call_once(|| Mutex::new(LFB::new(addr, pitch, width, height, bpp)));
     IS_LFB_INITIALIZED.store(true, core::sync::atomic::Ordering::Relaxed);
 }
 
@@ -101,31 +99,41 @@ impl LFB {
         if bpp != 32 {
             panic!("Only 32-bit per pixel (ARGB) format is supported for LFB");
         }
-        
-        LFB { addr, pitch, width, height }
+
+        LFB {
+            addr,
+            pitch,
+            width,
+            height,
+        }
     }
 
     pub fn get_address(&self) -> *mut u8 {
         self.addr
     }
 
+    pub fn get_pitch(&self) -> u32 {
+        self.pitch
+    }
+
     /// Get the resolution of the framebuffer as (width, height).
     pub fn get_dimensions(&self) -> (u32, u32) {
         (self.width, self.height)
     }
-    
+
     /// Get the width and height of a character in the font used by the framebuffer.
     pub fn get_char_dimensions(&self) -> (u32, u32) {
         (font_8x8::CHAR_WIDTH, font_8x8::CHAR_HEIGHT)
     }
-    
+
     /// Clear the framebuffer by filling it with black pixels.
     pub fn clear(&mut self) {
         unsafe {
-            self.addr.write_bytes(0, (self.pitch * self.height) as usize);
+            self.addr
+                .write_bytes(0, (self.pitch * self.height) as usize);
         }
     }
-    
+
     /// Draw a pixel at the specified (x, y) coordinates with the given color.
     /// This method checks the bounds of the framebuffer before drawing
     /// and omits drawing if the coordinates are out of bounds.
@@ -136,20 +144,20 @@ impl LFB {
             }
         }
     }
-    
+
     /// Draw a pixel at the specified (x, y) coordinates with the given color.
     /// This method does not check the bounds of the framebuffer.
     /// This is faster than `draw_pixel` but the caller must ensure that the coordinates are valid.
     /// Drawing outside the framebuffer may lead to undefined behavior.
     pub unsafe fn draw_pixel_unchecked(&mut self, x: u32, y: u32, color: u32) {
         let offset = (y * self.pitch + x * 4) as usize;
-        
+
         unsafe {
             let pixel_ptr = self.addr.add(offset) as *mut u32;
             *pixel_ptr = color;
         }
     }
-    
+
     /// Draw a bitmap image at the specified (x, y) coordinates with the given width and height.
     pub fn draw_bitmap(&mut self, x: u32, y: u32, width: u32, height: u32, bitmap: &[u8]) {
         let draw_height = if y + height > self.height {
@@ -157,7 +165,7 @@ impl LFB {
         } else {
             height
         };
-        
+
         let draw_width = if x + width > self.width {
             self.width - x
         } else {
@@ -200,7 +208,7 @@ impl LFB {
 
     /// Draw a string at the specified (x, y) coordinates with the given color.
     pub fn draw_str(&mut self, x: u32, y: u32, color: u32, str: &str) {
-        let char_width  = font_8x8::CHAR_WIDTH;
+        let char_width = font_8x8::CHAR_WIDTH;
         let char_height = font_8x8::CHAR_HEIGHT;
         let width_byte = if char_width % 8 == 0 {
             char_width / 8
@@ -213,7 +221,7 @@ impl LFB {
         for c in str.chars() {
             let char_pixels = LFB::get_char_pixels(c);
             let mut pixel_index = 0;
-            
+
             for y_offset in 0..char_height {
                 let mut xpos = current_char_xpos;
                 let ypos = y + y_offset;
@@ -222,8 +230,7 @@ impl LFB {
                     for bit in (0..8).rev() {
                         if ((1 << bit) & char_pixels[pixel_index]) != 0 {
                             self.draw_pixel(xpos, ypos, color);
-                        }
-                        else {
+                        } else {
                             self.draw_pixel(xpos, ypos, BLACK);
                         }
 

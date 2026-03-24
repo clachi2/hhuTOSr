@@ -45,6 +45,10 @@ pub enum SyscallFunction {
     PS,
     FreeMemoryBytes,
     MaxMemoryBytes,
+    GetLfbInfo,
+    FlushLfb,
+    GetMouseEvent,
+    GetKeyNonBlocking,
     NumSyscalls, // Last entry to count number of syscalls
 }
 
@@ -79,7 +83,9 @@ pub fn usr_dump_vmas() {
     syscall0(SyscallFunction::DumpVmas);
 }
 
-pub fn usr_map_heap(start: u64, size: usize) { syscall2(SyscallFunction::MapHeap, start, size as u64); }
+pub fn usr_map_heap(start: u64, size: usize) {
+    syscall2(SyscallFunction::MapHeap, start, size as u64);
+}
 
 pub fn usr_get_system_time() -> usize {
     syscall0(SyscallFunction::GetSystemTime) as usize
@@ -198,7 +204,7 @@ pub fn usr_spawn_thread(entry: fn(&[&str]), args: &str) -> usize {
         SyscallFunction::SpawnThread,
         entry as u64,
         args.as_ptr() as u64,
-        args.len() as u64
+        args.len() as u64,
     ) as usize
 }
 
@@ -220,6 +226,49 @@ pub fn usr_free_memory_bytes() -> usize {
 
 pub fn usr_max_memory_bytes() -> usize {
     syscall0(SyscallFunction::MaxMemoryBytes) as usize
+}
+
+pub fn usr_get_lfb_info() -> (u32, u32) {
+    let val = syscall0(SyscallFunction::GetLfbInfo);
+    let width = (val >> 32) as u32;
+    let height = (val & 0xFFFF_FFFF) as u32;
+    (width, height)
+}
+
+pub fn flush(buffer: *const u8, len: usize) {
+    syscall2(SyscallFunction::FlushLfb, buffer as u64, len as u64);
+}
+
+pub struct MouseEvent {
+    pub x: i8,
+    pub y: i8,
+    pub buttons: u8,
+}
+
+pub fn usr_get_mouse_event() -> Option<MouseEvent> {
+    let val = syscall0(SyscallFunction::GetMouseEvent);
+    if val & (1 << 24) == 0 {
+        None
+    } else {
+        Some(MouseEvent {
+            x: (val & 0xFF) as i8,
+            y: ((val >> 8) & 0xFF) as i8,
+            buttons: ((val >> 16) & 0xFF) as u8,
+        })
+    }
+}
+
+pub fn usr_get_key_nonblocking() -> Option<Key> {
+    let val = syscall0(SyscallFunction::GetKeyNonBlocking);
+    if val & (1 << 24) == 0 {
+        None
+    } else {
+        Some(Key {
+            asc: (val & 0xFF) as u8,
+            scan: ((val >> 8) & 0xFF) as u8,
+            modi: ((val >> 16) & 0xFF) as u8,
+        })
+    }
 }
 
 /// Perform a system call with 0 arguments.
@@ -299,7 +348,14 @@ pub fn syscall4(syscall: SyscallFunction, arg1: u64, arg2: u64, arg3: u64, arg4:
 }
 
 #[inline(always)]
-pub fn syscall5(syscall: SyscallFunction, arg1: u64, arg2: u64, arg3: u64, arg4: u64, arg5: u64) -> u64 {
+pub fn syscall5(
+    syscall: SyscallFunction,
+    arg1: u64,
+    arg2: u64,
+    arg3: u64,
+    arg4: u64,
+    arg5: u64,
+) -> u64 {
     let mut ret: u64;
     unsafe {
         asm!(

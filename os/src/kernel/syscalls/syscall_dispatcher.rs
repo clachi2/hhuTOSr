@@ -12,14 +12,21 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 15.10.2025
  */
 
-use crate::kernel::syscalls::functions::functions::{sys_free_memory_bytes, sys_get_system_time, sys_max_memory_bytes, sys_process_count, sys_reboot, sys_thread_count};
+use crate::kernel::syscalls::functions::functions::{
+    sys_free_memory_bytes, sys_get_system_time, sys_max_memory_bytes, sys_process_count,
+    sys_reboot, sys_thread_count,
+};
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
 use crate::kernel::syscalls::functions::io::{
-    sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor, sys_get_char, sys_get_key,
+    sys_flush_lfb, sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor,
+    sys_get_char, sys_get_key, sys_get_key_nonblocking, sys_get_lfb_info, sys_get_mouse_event,
     sys_kprint, sys_kprintln, sys_print, sys_println, sys_term_print, sys_term_print_at,
     sys_term_print_colored,
 };
-use crate::kernel::syscalls::functions::thread::{sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_ps, sys_spawn_process, sys_spawn_thread, sys_thread_exit, sys_thread_get_id, sys_thread_yield, sys_wait_pid};
+use crate::kernel::syscalls::functions::thread::{
+    sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_ps, sys_spawn_process, sys_spawn_thread,
+    sys_thread_exit, sys_thread_get_id, sys_thread_yield, sys_wait_pid,
+};
 use core::arch::naked_asm;
 use nolock::queues::mpsc::jiffy::queue;
 use usrlib::user_api::SyscallFunction;
@@ -68,6 +75,10 @@ impl SyscallFunctionTable {
                 sys_ps as *const u64,
                 sys_free_memory_bytes as *const u64,
                 sys_max_memory_bytes as *const u64,
+                sys_get_lfb_info as *const u64,
+                sys_flush_lfb as *const u64,
+                sys_get_mouse_event as *const u64,
+                sys_get_key_nonblocking as *const u64,
             ],
         }
     }

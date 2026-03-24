@@ -1,0 +1,12 @@
+[package]
+edition = "2024"
+name = "graphic"
+version = "0.1.0"
+authors = ["Rafael Reip"]
+
+[lib]
+crate-type = ["staticlib"]
+path = "src/graphic.rs"
+
+[dependencies]
+usrlib = { path = "../../usrlib" }

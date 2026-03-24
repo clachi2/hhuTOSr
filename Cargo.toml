@@ -8,4 +8,7 @@ members = [
     "apps/shell",
     "apps/echo",
     "apps/ps",
+    "apps/time",
+    "apps/graphic",
+    "apps/mouse",
 ]

@@ -45,7 +45,7 @@ impl Terminal {
     pub fn clear(&mut self) {
         get_lfb().lock().clear();
         self.cursor_x = 0;
-        self.cursor_y = 0;
+        self.cursor_y = 1;
     }
 
     pub fn print_string(&mut self, s: &str) {
