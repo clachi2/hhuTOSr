@@ -11,4 +11,9 @@ members = [
     "apps/time",
     "apps/graphic",
     "apps/mouse",
+    "apps/pci_list",
+    "apps/network",
+    "apps/sound",
+    "apps/kill",
+    "apps/threads",
 ]

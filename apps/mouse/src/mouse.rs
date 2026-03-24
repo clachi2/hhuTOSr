@@ -2,14 +2,12 @@
 extern crate alloc;
 
 use core::panic::PanicInfo;
-use usrlib::lfb::{UserLfb, BLACK};
+use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
+use usrlib::lfb::{BLACK, UserLfb};
 use usrlib::user_api::{
     usr_clear_screen, usr_get_key_nonblocking, usr_get_mouse_event, usr_map_heap, usr_thread_exit,
 };
 use usrlib::{allocator, term_println};
-
-const USER_HEAP_START: u64 = 0x200_0000_0000;
-const USER_HEAP_SIZE: usize = 8 * 1024 * 1024;
 
 const CURSOR_SIZE: u32 = 10;
 const COLOR_GREEN: u32 = 0x00FF00;

@@ -49,6 +49,10 @@ pub enum SyscallFunction {
     FlushLfb,
     GetMouseEvent,
     GetKeyNonBlocking,
+    PciList,
+    NetworkInfo,
+    PlayTetris,
+    KillThread,
     NumSyscalls, // Last entry to count number of syscalls
 }
 
@@ -199,10 +203,12 @@ pub fn usr_spawn_process(path: &str, args: &str) -> usize {
     ) as usize
 }
 
-pub fn usr_spawn_thread(entry: fn(&[&str]), args: &str) -> usize {
-    syscall3(
+pub fn usr_spawn_thread(entry: fn(&[&str]), name: &str, args: &str) -> usize {
+    syscall5(
         SyscallFunction::SpawnThread,
         entry as u64,
+        name.as_ptr() as u64,
+        name.len() as u64,
         args.as_ptr() as u64,
         args.len() as u64,
     ) as usize
@@ -269,6 +275,22 @@ pub fn usr_get_key_nonblocking() -> Option<Key> {
             modi: ((val >> 16) & 0xFF) as u8,
         })
     }
+}
+
+pub fn usr_pci_list() {
+    syscall0(SyscallFunction::PciList);
+}
+
+pub fn usr_network_info() {
+    syscall0(SyscallFunction::NetworkInfo);
+}
+
+pub fn usr_play_tetris() {
+    syscall0(SyscallFunction::PlayTetris);
+}
+
+pub fn usr_kill_thread(tid: usize) {
+    syscall1(SyscallFunction::KillThread, tid as u64);
 }
 
 /// Perform a system call with 0 arguments.

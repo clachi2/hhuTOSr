@@ -18,14 +18,16 @@ use crate::kernel::syscalls::functions::functions::{
 };
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
 use crate::kernel::syscalls::functions::io::{
-    sys_flush_lfb, sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor,
+    sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor, sys_flush_lfb,
     sys_get_char, sys_get_key, sys_get_key_nonblocking, sys_get_lfb_info, sys_get_mouse_event,
     sys_kprint, sys_kprintln, sys_print, sys_println, sys_term_print, sys_term_print_at,
     sys_term_print_colored,
 };
+use crate::kernel::syscalls::functions::pci::{sys_network_info, sys_pci_list};
+use crate::kernel::syscalls::functions::sound::sys_play_tetris;
 use crate::kernel::syscalls::functions::thread::{
-    sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_ps, sys_spawn_process, sys_spawn_thread,
-    sys_thread_exit, sys_thread_get_id, sys_thread_yield, sys_wait_pid,
+    sys_dump_vmas, sys_kill_thread, sys_map_heap, sys_process_get_id, sys_ps, sys_spawn_process,
+    sys_spawn_thread, sys_thread_exit, sys_thread_get_id, sys_thread_yield, sys_wait_pid,
 };
 use core::arch::naked_asm;
 use nolock::queues::mpsc::jiffy::queue;
@@ -79,6 +81,10 @@ impl SyscallFunctionTable {
                 sys_flush_lfb as *const u64,
                 sys_get_mouse_event as *const u64,
                 sys_get_key_nonblocking as *const u64,
+                sys_pci_list as *const u64,
+                sys_network_info as *const u64,
+                sys_play_tetris as *const u64,
+                sys_kill_thread as *const u64,
             ],
         }
     }

@@ -4,12 +4,13 @@ extern crate alloc;
 use alloc::format;
 use alloc::vec::Vec;
 use core::panic::PanicInfo;
-use usrlib::{allocator, format_user};
+use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
 use usrlib::stack_string::StackString;
-use usrlib::user_api::{usr_dump_vmas, usr_get_char, usr_get_system_time, usr_kprintln, usr_map_heap, usr_print, usr_println, usr_process_get_id, usr_thread_exit};
-
-const USER_HEAP_START: u64 = 0x200_0000_0000;
-const USER_HEAP_SIZE: usize = 1024 * 1024; // 1 MiB Platz
+use usrlib::user_api::{
+    usr_dump_vmas, usr_get_char, usr_get_system_time, usr_kprintln, usr_map_heap, usr_print,
+    usr_println, usr_process_get_id, usr_thread_exit,
+};
+use usrlib::{allocator, format_user};
 
 #[unsafe(link_section = ".main")]
 #[unsafe(no_mangle)]
@@ -23,22 +24,32 @@ fn main() {
 
     let time = usr_get_system_time();
     usr_println(format_user!("syscalltest-process: the current system time is {}!", time).as_str());
-    usr_kprintln(format_user!("syscalltest-process: the current system time is {}!", time).as_str());
+    usr_kprintln(
+        format_user!("syscalltest-process: the current system time is {}!", time).as_str(),
+    );
     for _ in 0..2_000_000 {
         core::hint::spin_loop();
     }
     let time = usr_get_system_time();
     usr_println(format_user!("syscalltest-process: the current system time is {}!", time).as_str());
-    usr_kprintln(format_user!("syscalltest-process: the current system time is {}!", time).as_str());
+    usr_kprintln(
+        format_user!("syscalltest-process: the current system time is {}!", time).as_str(),
+    );
 
     usr_println("VMA dump (kprint)...");
     usr_dump_vmas();
 
     let myvec: Vec<usize> = Vec::with_capacity(10000);
-    usr_println(format!("syscalltest-process: myvec has {} entries!", myvec.capacity()).as_str()); // format works now again :)))
+    usr_println(
+        format!(
+            "syscalltest-process: myvec has {} entries!",
+            myvec.capacity()
+        )
+        .as_str(),
+    ); // format works now again :)))
 
     usr_println("You can now type stuff: ");
-    loop{
+    loop {
         let c = usr_get_char();
         usr_print(format_user!("You typed: '{}'\n", c).as_str());
     }

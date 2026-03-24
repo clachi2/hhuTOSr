@@ -7,12 +7,16 @@
    ║ Autor:  Michael Schoettner, 15.05.2023                                  ║
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
-use usrlib::allocator::is_locked;
+use crate::consts::{PAGE_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
 use crate::kernel::cpu;
+use crate::kernel::multiboot::MULTIBOOT_INFO;
+use crate::kernel::processes::process::{Process, add_process, add_vma, remove_process};
+use crate::kernel::processes::vma::{VMA, VmaType};
 use crate::kernel::threads::idle_thread::idle_thread;
 use crate::kernel::threads::thread;
 use crate::kernel::threads::thread::Thread;
 use crate::library::queue::LinkedQueue;
+use crate::library::utils::strings_equal;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::{String, ToString};
@@ -21,11 +25,7 @@ use core::fmt::Display;
 use core::sync::atomic::{AtomicBool, AtomicUsize};
 use core::{fmt, ptr};
 use spin::{Mutex, Once};
-use crate::consts::{PAGE_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
-use crate::kernel::multiboot::MULTIBOOT_INFO;
-use crate::kernel::processes::process::{add_process, add_vma, remove_process, Process};
-use crate::kernel::processes::vma::{VmaType, VMA};
-use crate::library::utils::strings_equal;
+use usrlib::allocator::is_locked;
 
 /// Global scheduler instance
 static SCHEDULER: Once<Scheduler> = Once::new();
@@ -70,7 +70,11 @@ impl Scheduler {
     /// and an idle thread as the active thread.
     pub fn new() -> Self {
         let state = SchedulerState {
-            active_thread: Some(Thread::new_kernel_thread(idle_thread, Vec::new(), String::from("idle"))),
+            active_thread: Some(Thread::new_kernel_thread(
+                idle_thread,
+                Vec::new(),
+                String::from("idle"),
+            )),
             ready_queue: LinkedQueue::new(),
             alive_threads: Vec::new(),
         };
@@ -130,8 +134,12 @@ impl Scheduler {
             .retain(|&(id, pid, ref name)| id != current.get_id());
 
         let pid = current.get_pid();
-        if pid != 0{
-            let threads_with_same_pid = state.alive_threads.iter().filter(|&&(id, pidx, _)| pid == pidx).collect::<Vec<_>>();
+        if pid != 0 {
+            let threads_with_same_pid = state
+                .alive_threads
+                .iter()
+                .filter(|&&(id, pidx, _)| pid == pidx)
+                .collect::<Vec<_>>();
             if threads_with_same_pid.len() == 0 {
                 remove_process(pid);
             }
@@ -181,21 +189,47 @@ impl Scheduler {
 
     /// Kill the thread with the given ID by removing it from the ready queue.
     pub fn kill(&self, to_kill_id: usize) {
-        let mut state = self.state.lock();
-
-        if let Some(active) = &state.active_thread {
-            if active.get_id() == to_kill_id {
-                self.exit();
-                return;
+        // check if killing active thread
+        {
+            let state = self.state.lock();
+            if let Some(active) = &state.active_thread {
+                if active.get_id() == to_kill_id {
+                    drop(state);
+                    self.exit();
+                    return;
+                }
             }
         }
+
+        let mut state = self.state.lock();
+
+        let pid = state
+            .alive_threads
+            .iter()
+            .find(|&&(id, _, _)| id == to_kill_id)
+            .map(|&(_, pid, _)| pid);
 
         state
             .ready_queue
             .remove(|thread| thread.get_id() == to_kill_id);
         state
             .alive_threads
-            .retain(|&(id, pid, ref name)| id != to_kill_id);
+            .retain(|&(id, _, ref _name)| id != to_kill_id);
+
+        // remove process if last thread
+        if let Some(pid) = pid {
+            if pid != 0 {
+                let remaining = state
+                    .alive_threads
+                    .iter()
+                    .filter(|&&(_, p, _)| p == pid)
+                    .count();
+                if remaining == 0 {
+                    drop(state);
+                    remove_process(pid);
+                }
+            }
+        }
     }
 
     /// Check if the scheduler state is currently locked.
@@ -281,10 +315,7 @@ impl Scheduler {
         let pid = process.get_id();
         add_process(process);
 
-        let args: Vec<String> = args_str
-            .split_whitespace()
-            .map(|s| s.to_string())
-            .collect();
+        let args: Vec<String> = args_str.split_whitespace().map(|s| s.to_string()).collect();
 
         let mb_info = MULTIBOOT_INFO.get().expect("Multiboot info missing");
         let archive = mb_info.get_initrd_archive().expect("Initrd missing");
@@ -292,7 +323,7 @@ impl Scheduler {
         let mut app_size = 0;
         for file in archive.entries() {
             if let Ok(name) = file.filename().as_str() {
-                if strings_equal(name, app_name){
+                if strings_equal(name, app_name) {
                     app_size = file.data().len() as u64;
                     break;
                 }
@@ -303,22 +334,18 @@ impl Scheduler {
         let code_vma = VMA::new(
             USER_CODE_VIRT_START as u64,
             USER_CODE_VIRT_START as u64 + aligned_app_size,
-            VmaType::Code
+            VmaType::Code,
         );
         let stack_vma = VMA::new(
             USER_STACK_VIRT_START as u64,
             USER_STACK_VIRT_END as u64,
-            VmaType::Stack
+            VmaType::Stack,
         );
         add_vma(pid, code_vma).expect("code VMA overlap");
         add_vma(pid, stack_vma).expect("stack VMA overlap");
 
-        let mut thread = Thread::new_user_thread(
-            app_name,
-            args,
-            String::from(app_name)
-        );
-        if thread.is_none(){
+        let mut thread = Thread::new_user_thread(app_name, args, String::from(app_name));
+        if thread.is_none() {
             return 0;
         }
         let mut unwrapped_thread = thread.unwrap();

@@ -4,12 +4,10 @@ extern crate alloc;
 mod bmp_hhu;
 
 use core::panic::PanicInfo;
+use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
 use usrlib::lfb::{HHU_RED, UserLfb};
 use usrlib::user_api::{usr_clear_screen, usr_get_key, usr_map_heap, usr_thread_exit};
 use usrlib::{allocator, term_println};
-
-const USER_HEAP_START: u64 = 0x200_0000_0000;
-const USER_HEAP_SIZE: usize = 8 * 1024 * 1024; // 8 MiB – needs to hold the full framebuffer
 
 const MESSAGE: &str = "Welcome to corrodingOS! Press any key to continue...";
 

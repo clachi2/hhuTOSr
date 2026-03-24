@@ -4,10 +4,10 @@ extern crate alloc;
 use alloc::format;
 use core::panic::PanicInfo;
 use usrlib::allocator;
-use usrlib::user_api::{usr_dump_vmas, usr_hello_world, usr_kprintln, usr_map_heap, usr_println, usr_thread_exit};
-
-const USER_HEAP_START: u64 = 0x200_0000_0000;
-const USER_HEAP_SIZE: usize = 1024 * 1024; // 1 MiB Platz
+use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
+use usrlib::user_api::{
+    usr_dump_vmas, usr_hello_world, usr_kprintln, usr_map_heap, usr_println, usr_thread_exit,
+};
 
 #[unsafe(link_section = ".main")]
 #[unsafe(no_mangle)]

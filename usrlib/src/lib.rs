@@ -9,3 +9,4 @@ pub(crate) mod font_8x8;
 pub mod lfb;
 pub mod spinlock;
 pub mod stack_string;
+pub mod consts;

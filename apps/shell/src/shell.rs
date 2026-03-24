@@ -4,16 +4,18 @@ pub mod spinner;
 
 extern crate alloc;
 
+use crate::spinner::spinner;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::panic::PanicInfo;
-use usrlib::user_api::{usr_clear_screen, usr_draw_cursor, usr_dump_vmas, usr_erase_char, usr_erase_cursor, usr_get_key, usr_get_system_time, usr_map_heap, usr_process_count, usr_ps, usr_reboot, usr_spawn_process, usr_spawn_thread, usr_thread_count, usr_thread_exit, usr_wait_pid};
-use usrlib::{allocator, term_print, term_print_at, term_print_colored, term_println, term_println_colored};
-use crate::spinner::spinner;
-
-const USER_HEAP_START: u64 = 0x200_0000_0000;
-const USER_HEAP_SIZE: usize = 1024 * 1024; // 1 MiB Platz
+use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
+use usrlib::user_api::{
+    usr_clear_screen, usr_draw_cursor, usr_dump_vmas, usr_erase_char, usr_erase_cursor,
+    usr_get_key, usr_map_heap, usr_reboot, usr_spawn_process, usr_spawn_thread, usr_thread_exit,
+    usr_wait_pid,
+};
+use usrlib::{allocator, term_print, term_print_colored, term_println, term_println_colored};
 
 const RED: u32 = ((170u32) << 16) | ((0u32) << 8) | (0u32);
 const PROMPT_COLOR: u32 = ((151u32) << 16) | ((191u32) << 8) | (13u32);
@@ -47,13 +49,20 @@ impl Shell {
     }
 
     fn execute_command(&mut self, command_line: &str) {
+        // -d flag: detach – dont wait for process
+        let (detach, command_line) = if command_line.starts_with("-d ") {
+            (true, command_line[3..].trim())
+        } else {
+            (false, command_line)
+        };
+
         let mut parts = command_line.split_whitespace();
         let command = parts.next().unwrap_or("").to_string();
         let args: Vec<String> = parts.map(|s| s.to_string()).collect();
         let args_str: String = args.join(" ");
 
         match command.as_str() {
-            // internal Commands
+            // internal
             "help" => self.cmd_help(),
             "clear" => self.cmd_clear(),
             "banner" => self.print_banner(),
@@ -62,11 +71,13 @@ impl Shell {
             "spinner" => self.cmd_spinner(),
             "reboot" => usr_reboot(),
             "panic" => panic!("User triggered panic!"),
-            "" => {} // Ignore empty input
+            "" => {}
             _ => {
                 let pid = usr_spawn_process(command.as_str(), args_str.as_str());
                 if pid > 0 {
-                    usr_wait_pid(pid);
+                    if !detach {
+                        usr_wait_pid(pid);
+                    }
                 } else {
                     term_println_colored!(RED, "Error: Command not found '{}'", command);
                 }
@@ -76,6 +87,7 @@ impl Shell {
 
     fn cmd_help(&mut self) {
         term_println!("Available commands:");
+        term_println!("  -d <cmd>   - Run <cmd> without waiting (detach)");
         term_println!("  help       - Shows this help message");
         term_println!("  clear      - Clears the screen");
         term_println!("  banner     - Shows welcome banner");
@@ -83,15 +95,13 @@ impl Shell {
         term_println!("  echo       - Prints the given arguments");
         term_println!("  time       - Shows system uptime");
         term_println!("  ps         - Lists running processes");
-        term_println!("  kill <pid> - Kills a process by its ID");
-        term_println!("  numbers    - prints decimal, hexadecimal and binary numbers");
+        term_println!("  kill <tid> - Kills the thread with the given TID");
         term_println!("  graphic    - Runs a graphic demo");
-        term_println!("  threads <n>- Runs a thread demo");
+        term_println!("  threads <n>- Spawns n spinner threads (use with -d)");
         term_println!("  sound      - Plays a sound demo");
         term_println!("  mouse      - Runs a mouse demo");
-        term_println!("  heap       - Runs a heap demo");
         term_println!("  pci_list   - Lists PCI devices");
-        term_println!("  network    - Checks PCI network device");
+        term_println!("  network    - Shows RTL8139 network controller info");
         term_println!("  spinner    - Runs a spinner and process count demo");
         term_println!("  reboot     - Reboots the system");
         term_println!("  panic      - Triggers a kernel panic");
@@ -212,7 +222,7 @@ impl Shell {
     }
 
     fn cmd_spinner(&mut self) {
-        let tid = usr_spawn_thread(spinner, "100");
+        let tid = usr_spawn_thread(spinner, "spinner", "100");
         if tid == 0 {
             term_println_colored!(RED, "Error: Failed to spawn thread.");
         }

@@ -2,11 +2,9 @@
 extern crate alloc;
 
 use core::panic::PanicInfo;
+use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
 use usrlib::user_api::{usr_get_system_time, usr_map_heap, usr_thread_exit};
 use usrlib::{allocator, term_println};
-
-const USER_HEAP_START: u64 = 0x200_0000_0000;
-const USER_HEAP_SIZE: usize = 1024 * 1024; // 1 MiB
 
 #[unsafe(link_section = ".main")]
 #[unsafe(no_mangle)]

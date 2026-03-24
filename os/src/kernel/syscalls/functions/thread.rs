@@ -1,4 +1,3 @@
-use alloc::fmt::format;
 use crate::consts;
 use crate::devices::terminal::get_terminal;
 use crate::kernel::paging::pages;
@@ -7,6 +6,7 @@ use crate::kernel::processes::process::is_process_alive;
 use crate::kernel::processes::vma::{VMA, VmaType};
 use crate::kernel::threads::scheduler::get_scheduler;
 use crate::kernel::threads::thread::Thread;
+use alloc::fmt::format;
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
@@ -68,7 +68,13 @@ pub extern "C" fn sys_wait_pid(pid: u64) -> u64 {
     if is_process_alive(pid as usize) { 1 } else { 0 }
 }
 
-pub extern "C" fn sys_spawn_thread(entry_ptr: u64, args_ptr: *const u8, args_len: usize) -> u64 {
+pub extern "C" fn sys_spawn_thread(
+    entry_ptr: u64,
+    name_ptr: *const u8,
+    name_len: usize,
+    args_ptr: *const u8,
+    args_len: usize,
+) -> u64 {
     let scheduler = get_scheduler();
     let pid = scheduler.get_active_pid();
 
@@ -80,20 +86,19 @@ pub extern "C" fn sys_spawn_thread(entry_ptr: u64, args_ptr: *const u8, args_len
     let stack_vma = VMA::new(new_stack_start, new_stack_end, VmaType::Stack);
     process::add_vma(pid, stack_vma).expect("stack VMA overlap");
 
+    let name = {
+        let slice = unsafe { core::slice::from_raw_parts(name_ptr, name_len) };
+        core::str::from_utf8(slice).unwrap_or("thread").to_string()
+    };
+
     let slice_args = unsafe { core::slice::from_raw_parts(args_ptr, args_len) };
     if let Ok(args_str) = core::str::from_utf8(slice_args) {
         let args: Vec<String> = args_str.split_whitespace().map(|s| s.to_string()).collect();
 
         let pml4 = pages::read_cr3();
         let entry: fn(&[&str]) = unsafe { core::mem::transmute(entry_ptr) };
-        let new_thread = Thread::new_user_thread_existing_process(
-            entry,
-            args,
-            format!("{}_{}", pid, thread_idx),
-            pml4,
-            pid,
-            new_stack_end,
-        );
+        let new_thread =
+            Thread::new_user_thread_existing_process(entry, args, name, pml4, pid, new_stack_end);
 
         let tid = new_thread.get_id();
         scheduler.ready(new_thread);
@@ -104,8 +109,15 @@ pub extern "C" fn sys_spawn_thread(entry_ptr: u64, args_ptr: *const u8, args_len
     0
 }
 
+pub extern "C" fn sys_kill_thread(tid: u64) -> u64 {
+    get_scheduler().kill(tid as usize);
+    0
+}
+
 pub extern "C" fn sys_ps() -> u64 {
     let ps_str = get_scheduler().to_string();
-    get_terminal().lock().print_string(format!("{}\n", ps_str).as_str());
+    get_terminal()
+        .lock()
+        .print_string(format!("{}\n", ps_str).as_str());
     0
 }
