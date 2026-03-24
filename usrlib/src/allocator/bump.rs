@@ -64,7 +64,10 @@ impl BumpAllocator {
     }
 
     /// Deallocate memory (not supported by bump allocator).
-    pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {}
+    pub unsafe fn dealloc(&mut self, ptr: *mut u8, layout: Layout) {
+        let _ = layout;
+        let _ = ptr;
+    }
 }
 
 // Trait required by the Rust runtime for heap allocations

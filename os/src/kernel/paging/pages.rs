@@ -256,10 +256,15 @@ pub unsafe fn map_user_app(pml4: &mut PageTable, app_name: &str) -> bool {
     };
 
     let num_pages = (data.len() + PAGE_SIZE - 1) / PAGE_SIZE;
-    let phys_addr = FRAME_ALLOCATOR.lock().alloc_block(num_pages).expect("OOM allocating app");
+    let phys_addr: PhysAddr;
+    unsafe {
+        phys_addr = FRAME_ALLOCATOR.lock().alloc_block(num_pages).expect("OOM allocating app");
+    }
 
     let dest = phys_addr.as_mut_ptr::<u8>();
-    ptr::copy_nonoverlapping(data.as_ptr(), dest, data.len());
+    unsafe {
+        ptr::copy_nonoverlapping(data.as_ptr(), dest, data.len());
+    }
 
     pml4.map(
         USER_CODE_VIRT_START as u64,
@@ -274,4 +279,57 @@ pub unsafe fn map_user_app(pml4: &mut PageTable, app_name: &str) -> bool {
 pub unsafe fn map_user_heap(pml4_table: &mut PageTable, user_heap_start: u64, user_heap_size: usize){
     let num_pages = (user_heap_size + PAGE_SIZE - 1) / PAGE_SIZE;
     pml4_table.map(user_heap_start, num_pages, MapType::Allocate, false);
+}
+
+/// frees user frames, table frames, pml4 table
+/// does not free kernel frames!!
+pub unsafe fn free_user_page_table(pml4: *mut PageTable) {
+    let pml4_ref = unsafe { &*pml4 };
+    for pml4_entry in &pml4_ref.entries {
+        if !pml4_entry.get_flags().contains(PageFlags::PRESENT) {
+            continue;
+        }
+
+        let pdpt_phys = pml4_entry.get_addr();
+        let pdpt = unsafe { &*pdpt_phys.as_ptr::<PageTable>() };
+        for pdpt_entry in &pdpt.entries {
+            if !pdpt_entry.get_flags().contains(PageFlags::PRESENT) {
+                continue;
+            }
+
+            let pd_phys = pdpt_entry.get_addr();
+            let pd = unsafe { &*pd_phys.as_ptr::<PageTable>() };
+            for pd_entry in &pd.entries {
+                if !pd_entry.get_flags().contains(PageFlags::PRESENT) {
+                    continue;
+                }
+
+                let pt_phys = pd_entry.get_addr();
+                let pt = unsafe { &*pt_phys.as_ptr::<PageTable>() };
+                for pt_entry in &pt.entries {
+                    if !pt_entry.get_flags().contains(PageFlags::PRESENT) {
+                        continue;
+                    }
+                    // only free user frmes
+                    if pt_entry.get_flags().contains(PageFlags::USER) {
+                        unsafe {
+                            FRAME_ALLOCATOR.lock().free_block(pt_entry.get_addr(), 1);
+                        }
+                    }
+                }
+                unsafe {
+                    FRAME_ALLOCATOR.lock().free_block(pt_phys, 1);
+                }
+            }
+            unsafe {
+                FRAME_ALLOCATOR.lock().free_block(pd_phys, 1);
+            }
+        }
+        unsafe {
+            FRAME_ALLOCATOR.lock().free_block(pdpt_phys, 1);
+        }
+    }
+    unsafe {
+        FRAME_ALLOCATOR.lock().free_block(PhysAddr::new(pml4 as u64), 1);
+    }
 }

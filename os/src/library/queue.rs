@@ -93,6 +93,35 @@ impl<T> LinkedQueue<T> {
 
         false
     }
+
+    pub fn remove_and_return<F>(&mut self, f: F) -> Option<T>
+    where
+        F: Fn(&T) -> bool,
+    {
+        if let Some(ref head_node) = self.head {
+            if f(&head_node.data) {
+                let mut old_head = self.head.take().unwrap();
+                self.head = old_head.next.take();
+                return Some(old_head.data);
+            }
+        }
+
+        let mut current = self.head.as_mut();
+
+        while let Some(node) = current {
+            if let Some(ref next_node) = node.next {
+                if f(&next_node.data) {
+                    let mut removed = node.next.take().unwrap();
+                    node.next = removed.next.take();
+                    return Some(removed.data);
+                }
+            }
+
+            current = node.next.as_mut();
+        }
+
+        None
+    }
 }
 
 impl<T: Display> Display for LinkedQueue<T> {

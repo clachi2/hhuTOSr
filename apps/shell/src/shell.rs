@@ -252,5 +252,5 @@ impl Shell {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    loop {}
+    loop {let _ = info;}
 }

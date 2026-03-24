@@ -8,7 +8,7 @@ use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
 use usrlib::stack_string::StackString;
 use usrlib::user_api::{
     usr_dump_vmas, usr_get_char, usr_get_system_time, usr_kprintln, usr_map_heap, usr_print,
-    usr_println, usr_process_get_id, usr_thread_exit,
+    usr_println, usr_process_get_id,
 };
 use usrlib::{allocator, format_user};
 
@@ -53,16 +53,9 @@ fn main() {
         let c = usr_get_char();
         usr_print(format_user!("You typed: '{}'\n", c).as_str());
     }
-
-    usr_thread_exit();
-
-    usr_println("PROBLEM!!! Should have exited!");
-    usr_kprintln("PROBLEM!!! Should have exited!");
-
-    loop {}
 }
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    loop {}
+    loop {let _ = info;}
 }

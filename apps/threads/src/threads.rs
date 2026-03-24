@@ -48,7 +48,7 @@ fn main(args: &[&str]) {
     }
 
     for i in 0..num {
-        let name = format!("spinner-{}", i);
+        let name = format!("threads-{}", i);
         let thread_args = format!("{}", i);
         usr_spawn_thread(spinner_thread, name.as_str(), thread_args.as_str());
     }

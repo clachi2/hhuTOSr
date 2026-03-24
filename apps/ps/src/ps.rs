@@ -6,7 +6,7 @@ use usrlib::user_api::{usr_ps, usr_thread_exit};
 
 #[unsafe(link_section = ".main")]
 #[unsafe(no_mangle)]
-fn main(args: &[&str]) {
+fn main() {
     usr_ps();
 
     usr_thread_exit();
@@ -15,5 +15,5 @@ fn main(args: &[&str]) {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    loop {}
+    loop {let _ = info;}
 }

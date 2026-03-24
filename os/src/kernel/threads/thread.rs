@@ -287,6 +287,10 @@ impl Thread {
         self.pid = pid;
     }
 
+    pub fn get_pml4_ptr(&self) -> *mut PageTable {
+        ptr::from_ref(self.pml4) as *mut PageTable
+    }
+
     /// Prepare the stack of a newly created thread in a way that it can be used
     /// to return to the 'kickoff' function with the thread itself as parameter.
     /// The prepared stack is used in 'thread_start' to start the first thread.

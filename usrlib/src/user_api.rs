@@ -9,7 +9,6 @@
  *         Michael Schoettner, Heinrich Heine University Duesseldorf, 14.09.2023
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 15.10.2025
  */
-use alloc::format;
 use core::arch::asm;
 
 /// System call numbers available to user programs.

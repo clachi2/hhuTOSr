@@ -32,6 +32,7 @@ fn main() {
 
 fn stack_test(depth: u64) {
     let large_array = [0u64; 512]; // 4KB on Stack
+    let _ = large_array;
     usr_println(format!("depth: {}", depth).as_str());
     if depth > 0 {
         stack_test(depth - 1);
@@ -40,5 +41,5 @@ fn stack_test(depth: u64) {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    loop {}
+    loop {let _ = info;}
 }

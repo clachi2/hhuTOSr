@@ -10,6 +10,8 @@
 use crate::consts::{PAGE_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
 use crate::kernel::cpu;
 use crate::kernel::multiboot::MULTIBOOT_INFO;
+use crate::kernel::paging::pages;
+use crate::kernel::paging::pages::PageTable;
 use crate::kernel::processes::process::{Process, add_process, add_vma, remove_process};
 use crate::kernel::processes::vma::{VMA, VmaType};
 use crate::kernel::threads::idle_thread::idle_thread;
@@ -57,7 +59,11 @@ struct SchedulerState {
     active_thread: Option<Box<Thread>>,
     ready_queue: LinkedQueue<Box<Thread>>,
     alive_threads: Vec<(usize, usize, String)>,
+    zombie: Option<Box<Thread>>, // thread that has exited but is not freed yet (next thread will free it)
+    zombie_pml4: Option<*mut PageTable>,
 }
+
+unsafe impl Send for SchedulerState {}
 
 /// Represents the scheduler.
 /// It is round-robin-based and uses a queue to manage the threads.
@@ -77,6 +83,8 @@ impl Scheduler {
             )),
             ready_queue: LinkedQueue::new(),
             alive_threads: Vec::new(),
+            zombie: None,
+            zombie_pml4: None,
         };
 
         Scheduler {
@@ -126,24 +134,39 @@ impl Scheduler {
     pub fn exit(&self) {
         let mut state = self.state.lock();
 
-        // The active thread is never None, since we must at least have the idle thread.
-        let mut current = state.active_thread.take().unwrap();
+        // free zombie if exits
+        state.zombie.take(); // drops Box<Thread> → frees kernel_stack Vec
+        if let Some(pml4) = state.zombie_pml4.take() {
+            unsafe {
+                pages::free_user_page_table(pml4);
+            }
+        }
 
+        let current = state.active_thread.take().unwrap();
         state
             .alive_threads
             .retain(|&(id, pid, ref name)| id != current.get_id());
 
         let pid = current.get_pid();
-        if pid != 0 {
+        let is_last_of_process = if pid != 0 {
             let threads_with_same_pid = state
                 .alive_threads
                 .iter()
                 .filter(|&&(id, pidx, _)| pid == pidx)
-                .collect::<Vec<_>>();
-            if threads_with_same_pid.len() == 0 {
-                remove_process(pid);
-            }
+                .count();
+            threads_with_same_pid == 0
+        } else {
+            false
+        };
+
+        if is_last_of_process {
+            remove_process(pid);
+            state.zombie_pml4 = Some(current.get_pml4_ptr()); // free after context switch
+        } else if pid == 0 {
+            state.zombie_pml4 = Some(current.get_pml4_ptr()); // kernel thread free page table frames
         }
+
+        state.zombie = Some(current); // free after context switch
 
         // The idle thread never exits, so there must be at least one thread in the queue.
         let next = state.ready_queue.dequeue().unwrap();
@@ -157,7 +180,7 @@ impl Scheduler {
             // `current` still contains the old thread we want to exit,
             // while `state.active_thread` contains the next one.
             Thread::switch(
-                current.as_mut(),
+                state.zombie.as_mut().unwrap().as_mut(),
                 state.active_thread.as_mut().unwrap().as_mut(),
             );
         }
@@ -172,7 +195,15 @@ impl Scheduler {
             if is_locked() {
                 return; // Do not yield if the allocator is locked
             }
-            // kprintln!("Ready queue: {}", state.ready_queue);
+
+            // free zombie if exits
+            state.zombie.take();
+            if let Some(pml4) = state.zombie_pml4.take() {
+                unsafe {
+                    pages::free_user_page_table(pml4);
+                }
+            }
+
             let mut current = state.active_thread.take().unwrap();
             let current_ptr = current.as_mut() as *mut Thread;
             if let Some(dequeued) = state.ready_queue.dequeue() {
@@ -203,31 +234,37 @@ impl Scheduler {
 
         let mut state = self.state.lock();
 
-        let pid = state
-            .alive_threads
-            .iter()
-            .find(|&&(id, _, _)| id == to_kill_id)
-            .map(|&(_, pid, _)| pid);
-
-        state
+        // Remove from ready queue, taking ownership so we can inspect before drop.
+        let killed = state
             .ready_queue
-            .remove(|thread| thread.get_id() == to_kill_id);
+            .remove_and_return(|t| t.get_id() == to_kill_id);
+
         state
             .alive_threads
             .retain(|&(id, _, ref _name)| id != to_kill_id);
 
-        // remove process if last thread
-        if let Some(pid) = pid {
-            if pid != 0 {
-                let remaining = state
+        if let Some(thread) = killed {
+            let pid = thread.get_pid();
+
+            let is_last = pid != 0
+                && state
                     .alive_threads
                     .iter()
                     .filter(|&&(_, p, _)| p == pid)
-                    .count();
-                if remaining == 0 {
-                    drop(state);
-                    remove_process(pid);
+                    .count()
+                    == 0;
+
+            if is_last {
+                let pml4_ptr = thread.get_pml4_ptr();
+                drop(thread);
+                drop(state);
+                remove_process(pid);
+                unsafe {
+                    pages::free_user_page_table(pml4_ptr);
                 }
+            } else {
+                // not last thread of process
+                drop(thread);
             }
         }
     }
@@ -344,7 +381,7 @@ impl Scheduler {
         add_vma(pid, code_vma).expect("code VMA overlap");
         add_vma(pid, stack_vma).expect("stack VMA overlap");
 
-        let mut thread = Thread::new_user_thread(app_name, args, String::from(app_name));
+        let thread = Thread::new_user_thread(app_name, args, String::from(app_name));
         if thread.is_none() {
             return 0;
         }

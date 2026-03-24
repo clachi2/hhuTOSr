@@ -25,5 +25,5 @@ fn main(args: &[&str]) {
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    loop {}
+    loop {let _ = info;}
 }
