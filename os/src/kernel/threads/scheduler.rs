@@ -255,7 +255,7 @@ impl Scheduler {
         }
     }
 
-    pub fn process_count(&self) -> usize {
+    pub fn thread_count(&self) -> usize {
         self.state.lock().alive_threads.len()
     }
 

@@ -12,17 +12,14 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 15.10.2025
  */
 
-use crate::kernel::syscalls::functions::functions::{sys_get_system_time, sys_reboot};
+use crate::kernel::syscalls::functions::functions::{sys_get_system_time, sys_process_count, sys_reboot, sys_thread_count};
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
 use crate::kernel::syscalls::functions::io::{
     sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor, sys_get_char, sys_get_key,
     sys_kprint, sys_kprintln, sys_print, sys_println, sys_term_print, sys_term_print_at,
     sys_term_print_colored,
 };
-use crate::kernel::syscalls::functions::thread::{
-    sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_spawn_process, sys_thread_exit,
-    sys_thread_get_id, sys_thread_yield, sys_wait_pid,
-};
+use crate::kernel::syscalls::functions::thread::{sys_dump_vmas, sys_map_heap, sys_process_get_id, sys_spawn_process, sys_spawn_thread, sys_thread_exit, sys_thread_get_id, sys_thread_yield, sys_wait_pid};
 use core::arch::naked_asm;
 use nolock::queues::mpsc::jiffy::queue;
 use usrlib::user_api::SyscallFunction;
@@ -65,6 +62,9 @@ impl SyscallFunctionTable {
                 sys_erase_char as *const u64,
                 sys_reboot as *const u64,
                 sys_spawn_process as *const u64,
+                sys_spawn_thread as *const u64,
+                sys_thread_count as *const u64,
+                sys_process_count as *const u64,
             ],
         }
     }

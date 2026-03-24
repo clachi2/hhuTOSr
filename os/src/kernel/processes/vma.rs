@@ -1,6 +1,8 @@
+use core::cmp::PartialEq;
 use core::fmt;
+use x86_64::VirtAddr;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 pub enum VmaType {
     Code,
     Heap,
@@ -26,6 +28,14 @@ impl VMA {
          * Hier muss Code eingefuegt werden
          */
         self.start < other.end && other.start < self.end
+    }
+
+    pub fn is_inside(&self, virt_addr: u64) -> bool{
+        virt_addr >= self.start && virt_addr < self.end
+    }
+
+    pub fn get_type(&self) -> VmaType {
+        self.typ
     }
 }
 

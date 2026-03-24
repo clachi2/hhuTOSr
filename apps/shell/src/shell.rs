@@ -1,15 +1,16 @@
 #![no_std]
+
+pub mod spinner;
+
 extern crate alloc;
 
 use alloc::format;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
 use core::panic::PanicInfo;
-use usrlib::user_api::{
-    usr_clear_screen, usr_draw_cursor, usr_erase_char, usr_erase_cursor, usr_get_key, usr_map_heap,
-    usr_reboot, usr_spawn_process, usr_thread_exit, usr_wait_pid,
-};
-use usrlib::{allocator, term_print, term_print_colored, term_println, term_println_colored};
+use usrlib::user_api::{usr_clear_screen, usr_draw_cursor, usr_dump_vmas, usr_erase_char, usr_erase_cursor, usr_get_key, usr_get_system_time, usr_map_heap, usr_process_count, usr_reboot, usr_spawn_process, usr_spawn_thread, usr_thread_count, usr_thread_exit, usr_wait_pid};
+use usrlib::{allocator, term_print, term_print_at, term_print_colored, term_println, term_println_colored};
+use crate::spinner::spinner;
 
 const USER_HEAP_START: u64 = 0x200_0000_0000;
 const USER_HEAP_SIZE: usize = 1024 * 1024; // 1 MiB Platz
@@ -57,6 +58,8 @@ impl Shell {
             "clear" => self.cmd_clear(),
             "banner" => self.print_banner(),
             "history" => self.cmd_history(),
+            "vmas" => self.cmd_vmas(),
+            "spinner" => self.cmd_spinner(),
             "reboot" => usr_reboot(),
             "panic" => panic!("User triggered panic!"),
             "" => {} // Ignore empty input
@@ -95,6 +98,7 @@ impl Shell {
     }
 
     pub fn run(&mut self) {
+        self.cmd_spinner();
         usr_clear_screen();
         self.print_banner();
         term_println!("Type 'help' for a list of commands.");
@@ -200,6 +204,17 @@ impl Shell {
         }
         if self.history.is_empty() {
             term_println_colored!(RED, "  No commands in history.");
+        }
+    }
+
+    fn cmd_vmas(&mut self) {
+        usr_dump_vmas();
+    }
+
+    fn cmd_spinner(&mut self) {
+        let tid = usr_spawn_thread(spinner, "100");
+        if tid == 0 {
+            term_println_colored!(RED, "Error: Failed to spawn thread.");
         }
     }
 

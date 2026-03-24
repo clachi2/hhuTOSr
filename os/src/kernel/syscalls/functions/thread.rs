@@ -1,10 +1,14 @@
-use alloc::string::String;
+use crate::consts;
 use crate::devices::terminal::get_terminal;
 use crate::kernel::paging::pages;
 use crate::kernel::processes::process;
 use crate::kernel::processes::process::is_process_alive;
-use crate::kernel::processes::vma::{VmaType, VMA};
+use crate::kernel::processes::vma::{VMA, VmaType};
 use crate::kernel::threads::scheduler::get_scheduler;
+use crate::kernel::threads::thread::Thread;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
 
 pub extern "C" fn sys_thread_yield() {
     get_scheduler().yield_cpu();
@@ -37,12 +41,17 @@ pub extern "C" fn sys_map_heap(user_heap_start: u64, user_heap_size: usize) {
     let heap_vma = VMA::new(
         user_heap_start,
         user_heap_start + user_heap_size as u64,
-        VmaType::Heap
+        VmaType::Heap,
     );
     let _ = process::add_vma(pid, heap_vma);
 }
 
-pub extern "C" fn sys_spawn_process(buffer_proc: *const u8, len_proc: usize, buffer_args: *const u8, len_args: usize) -> u64 {
+pub extern "C" fn sys_spawn_process(
+    buffer_proc: *const u8,
+    len_proc: usize,
+    buffer_args: *const u8,
+    len_args: usize,
+) -> u64 {
     let mut success = 0;
     let slice_proc = unsafe { core::slice::from_raw_parts(buffer_proc, len_proc) };
     if let Ok(app_name) = core::str::from_utf8(slice_proc) {
@@ -55,9 +64,41 @@ pub extern "C" fn sys_spawn_process(buffer_proc: *const u8, len_proc: usize, buf
 }
 
 pub extern "C" fn sys_wait_pid(pid: u64) -> u64 {
-    if is_process_alive(pid as usize) {
-        1
-    } else {
-        0
+    if is_process_alive(pid as usize) { 1 } else { 0 }
+}
+
+pub extern "C" fn sys_spawn_thread(entry_ptr: u64, args_ptr: *const u8, args_len: usize) -> u64 {
+    let scheduler = get_scheduler();
+    let pid = scheduler.get_active_pid();
+
+    let thread_idx = process::next_thread_index(pid);
+    let offset = (thread_idx as u64) * (consts::STACK_SIZE as u64);
+    let new_stack_end = (consts::USER_STACK_VIRT_END as u64) - offset;
+    let new_stack_start = new_stack_end - (consts::STACK_SIZE as u64);
+
+    let stack_vma = VMA::new(new_stack_start, new_stack_end, VmaType::Stack);
+    process::add_vma(pid, stack_vma).expect("stack VMA overlap");
+
+    let slice_args = unsafe { core::slice::from_raw_parts(args_ptr, args_len) };
+    if let Ok(args_str) = core::str::from_utf8(slice_args) {
+        let args: Vec<String> = args_str.split_whitespace().map(|s| s.to_string()).collect();
+
+        let pml4 = pages::read_cr3();
+        let entry: fn(&[&str]) = unsafe { core::mem::transmute(entry_ptr) };
+        let new_thread = Thread::new_user_thread_existing_process(
+            entry,
+            args,
+            format!("{}_tid{}", pid, thread_idx),
+            pml4,
+            pid,
+            new_stack_end,
+        );
+
+        let tid = new_thread.get_id();
+        scheduler.ready(new_thread);
+
+        return tid as u64;
     }
+    kprintln!("Error: Argumente konnten nicht gelesen werden!");
+    0
 }

@@ -2,7 +2,9 @@ use alloc::collections::BTreeMap;
 use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::AtomicUsize;
-use crate::kernel::processes::vma::VMA;
+use x86_64::VirtAddr;
+use crate::consts::USER_STACK_VIRT_START;
+use crate::kernel::processes::vma::{VmaType, VMA};
 use crate::library::mutex::Mutex;
 
 static PROCESSES: Mutex<BTreeMap<usize, Process>> = Mutex::new(BTreeMap::new());
@@ -13,6 +15,7 @@ pub struct Process {
     id: usize,
     name: String,
     pub vmas: Vec<VMA>,
+    pub thread_count: usize,
 }
 
 impl Process {
@@ -22,12 +25,28 @@ impl Process {
             id: pid,
             name: String::from(name),
             vmas: Vec::new(),
+            thread_count: 1,
         }
     }
 
     pub fn get_id(&self) -> usize {
         self.id
     }
+}
+
+pub fn next_thread_index(pid: usize) -> usize {
+    let mut map = PROCESSES.lock();
+    if let Some(process) = map.get_mut(&pid) {
+        let idx = process.thread_count;
+        process.thread_count += 1;
+        idx
+    } else {
+        0
+    }
+}
+
+pub fn process_count() -> usize {
+    PROCESSES.lock().len()
 }
 
 pub fn add_process(process: Process) {
@@ -53,6 +72,18 @@ pub fn get_app_name(process_id: usize) -> Option<String> {
      */
     let map = PROCESSES.lock();
     map.get(&process_id).map(|p| p.name.clone())
+}
+
+pub fn address_is_stack_vma(process_id: usize, virt_addr: u64) -> bool{
+    let map = PROCESSES.lock();
+    if let Some(process) = map.get(&process_id) {
+        for vma in &process.vmas {
+            if vma.get_type() == VmaType::Stack && vma.is_inside(virt_addr){
+                return true;
+            }
+        }
+    }
+    false
 }
 
 

@@ -20,7 +20,7 @@ pub fn spinner(args: &[&str]) {
                 0,
                 "{} P:{}   ",
                 SPINNER_CHARS[(current_time / delta_time) % SPINNER_CHARS.len()],
-                get_scheduler().process_count(),
+                get_scheduler().thread_count(),
             );
         }
     }

@@ -2,6 +2,9 @@ use core::ptr;
 use crate::consts::{PAGE_SIZE, STACK_SIZE, USER_CODE_VIRT_START, USER_STACK_VIRT_END, USER_STACK_VIRT_START};
 use crate::kernel::multiboot::MULTIBOOT_INFO;
 use crate::kernel::paging::frames::{PhysAddr, FRAME_ALLOCATOR};
+use crate::kernel::processes::process::{address_is_stack_vma};
+use crate::kernel::processes::vma::VmaType;
+use crate::kernel::threads::scheduler::get_scheduler;
 use crate::library::utils::strings_equal;
 
 const PAGE_TABLE_ENTRIES: usize = 512;
@@ -220,8 +223,20 @@ pub unsafe fn map_user_stack(pml4_table: &mut PageTable) -> *mut u8 {
     USER_STACK_VIRT_END as *mut u8
 }
 
+pub unsafe fn map_new_user_stack(pml4: &mut PageTable, thread_index: usize) -> u64 {
+    let stack_top = USER_STACK_VIRT_END as u64 - (thread_index as u64 * STACK_SIZE as u64);
+
+    let top_page = stack_top - PAGE_SIZE as u64;
+    pml4.map(top_page, 1, MapType::Allocate, false);
+
+    stack_top
+}
+
 pub fn check_and_grow_user_stack(virt_addr: u64) -> bool {
-    if virt_addr >= USER_STACK_VIRT_START as u64 && virt_addr < USER_STACK_VIRT_END as u64 {
+
+    let pid = get_scheduler().get_active_pid();
+    if address_is_stack_vma(pid, virt_addr){
+    // if virt_addr >= USER_STACK_VIRT_START as u64 && virt_addr < USER_STACK_VIRT_END as u64 {
         let pml4 = read_cr3();
         let page_to_map = virt_addr & !(PAGE_SIZE as u64 - 1);
         pml4.map(page_to_map, 1, MapType::Allocate, false);

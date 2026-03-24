@@ -39,6 +39,9 @@ pub enum SyscallFunction {
     EraseChar,
     Reboot,
     SpawnProcess,
+    SpawnThread,
+    ThreadCount,
+    ProcessCount,
     NumSyscalls, // Last entry to count number of syscalls
 }
 
@@ -185,6 +188,23 @@ pub fn usr_spawn_process(path: &str, args: &str) -> usize {
         args.as_ptr() as u64,
         args.len() as u64,
     ) as usize
+}
+
+pub fn usr_spawn_thread(entry: fn(&[&str]), args: &str) -> usize {
+    syscall3(
+        SyscallFunction::SpawnThread,
+        entry as u64,
+        args.as_ptr() as u64,
+        args.len() as u64
+    ) as usize
+}
+
+pub fn usr_thread_count() -> usize {
+    syscall0(SyscallFunction::ThreadCount) as usize
+}
+
+pub fn usr_process_count() -> usize {
+    syscall0(SyscallFunction::ProcessCount) as usize
 }
 
 /// Perform a system call with 0 arguments.

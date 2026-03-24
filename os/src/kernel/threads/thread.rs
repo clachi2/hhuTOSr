@@ -135,6 +135,7 @@ pub struct Thread {
     is_kernel_thread: bool,
     kernel_stack: Vec<u64>,
     stack_ptr: usize, // Pointer on the stack to the saved context
+    user_stack_top: u64,
     pml4: &'static mut PageTable,
     entry: fn(&[&str]),
     args: Vec<String>,
@@ -163,6 +164,7 @@ impl Thread {
             is_kernel_thread: true,
             kernel_stack,
             stack_ptr,
+            user_stack_top: USER_STACK_VIRT_END as u64,
             pml4,
             entry,
             args,
@@ -201,6 +203,36 @@ impl Thread {
         unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
 
         Some(thread)
+    }
+
+    pub fn new_user_thread_existing_process(
+        entry: fn(&[&str]),
+        args: Vec<String>,
+        name: String,
+        pml4: &'static mut PageTable,
+        pid: usize,
+        user_stack_top: u64
+    ) -> Box<Thread> {
+        let mut kernel_stack = Vec::<u64>::with_capacity(consts::STACK_SIZE / 8);
+        kernel_stack.resize(kernel_stack.capacity(), 0);
+
+        let stack_ptr = ptr::from_ref(&kernel_stack[kernel_stack.capacity() - 1]) as usize;
+
+        let mut thread = Box::new(Thread {
+            id: next_id(),
+            pid,
+            is_kernel_thread: false,
+            kernel_stack,
+            stack_ptr,
+            pml4,
+            entry,
+            args,
+            name,
+            user_stack_top,
+        });
+
+        thread.prepare_kernel_stack();
+        thread
     }
 
     /// Start the thread.
@@ -274,7 +306,7 @@ impl Thread {
     /// switches to user mode (Ring 3) and the user stack is used. If this function works correctly,
     /// the thread continues in user mode in the function 'kickoff_user_thread'.
     fn switch_to_usermode(&mut self) {
-        let mut user_stack_ptr = USER_STACK_VIRT_END as u64;
+        let mut user_stack_ptr = self.user_stack_top;
         let mut user_str_infos = Vec::with_capacity(self.args.len());
 
         // copy args to user stack
