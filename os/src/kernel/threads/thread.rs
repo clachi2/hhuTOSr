@@ -17,7 +17,7 @@ use alloc::vec::Vec;
 use core::arch::naked_asm;
 use core::fmt::Display;
 use core::sync::atomic::AtomicUsize;
-use crate::consts::{STACK_ENTRY_SIZE, STACK_SIZE, USER_STACK_VIRT_END};
+use crate::consts::{PAGE_SIZE, STACK_ENTRY_SIZE, STACK_SIZE, USER_STACK_VIRT_END};
 use core::{fmt, ptr};
 use crate::kernel::paging::pages;
 use crate::kernel::paging::pages::PageTable;
@@ -86,8 +86,12 @@ unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: us
         "mov [rdi], rsp", // save rsp to coroutine stack pointer
 
         // Update TSS rsp0 to 'next_stack_end' (third parameter)
+        "push rcx",           // Sichern
+        "push rsi",           // Sichern
         "mov rdi, rdx", // rdx = next_stack_end
         "call _tss_set_rsp0",
+        "pop rsi",            // Wiederherstellen
+        "pop rcx",            // Wiederherstellen
 
         "mov cr3, rcx", // load new address space (fourth parameter)
 
@@ -181,7 +185,8 @@ impl Thread {
 
         thread.is_kernel_thread = false;
 
-        unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
+        let top_page_addr = (USER_STACK_VIRT_END - PAGE_SIZE) as u64;
+        unsafe { pages::map_user_stack(thread.pml4, top_page_addr) as *mut u64 };
 
         thread
     }
@@ -200,7 +205,8 @@ impl Thread {
             }
         }
 
-        unsafe { pages::map_user_stack(thread.pml4) as *mut u64 };
+        let top_page_addr = (USER_STACK_VIRT_END - PAGE_SIZE) as u64;
+        unsafe { pages::map_user_stack(thread.pml4, top_page_addr) as *mut u64 };
 
         Some(thread)
     }
@@ -230,6 +236,10 @@ impl Thread {
             name,
             user_stack_top,
         });
+
+        unsafe {
+            pages::map_user_stack(thread.pml4, user_stack_top);
+        }
 
         thread.prepare_kernel_stack();
         thread
@@ -321,6 +331,7 @@ impl Thread {
         for arg in self.args.iter().rev() { // rev() so arg 0 is ontop
             let bytes = arg.as_bytes();
             user_stack_ptr -= bytes.len() as u64;
+            user_stack_ptr &= !0xF; // align to 16 bytes
 
             unsafe {
                 ptr::copy_nonoverlapping(

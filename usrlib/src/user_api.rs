@@ -43,6 +43,8 @@ pub enum SyscallFunction {
     ThreadCount,
     ProcessCount,
     PS,
+    FreeMemoryBytes,
+    MaxMemoryBytes,
     NumSyscalls, // Last entry to count number of syscalls
 }
 
@@ -210,6 +212,14 @@ pub fn usr_process_count() -> usize {
 
 pub fn usr_ps() {
     syscall0(SyscallFunction::PS);
+}
+
+pub fn usr_free_memory_bytes() -> usize {
+    syscall0(SyscallFunction::FreeMemoryBytes) as usize
+}
+
+pub fn usr_max_memory_bytes() -> usize {
+    syscall0(SyscallFunction::MaxMemoryBytes) as usize
 }
 
 /// Perform a system call with 0 arguments.

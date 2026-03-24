@@ -217,19 +217,9 @@ pub fn init_kernel_tables() -> &'static mut PageTable {
     }
 }
 
-pub unsafe fn map_user_stack(pml4_table: &mut PageTable) -> *mut u8 {
-    let top_page_addr = (USER_STACK_VIRT_END - PAGE_SIZE) as u64;
+pub unsafe fn map_user_stack(pml4_table: &mut PageTable, top_page_addr: u64) -> *mut u8 {
     pml4_table.map(top_page_addr, 1, MapType::Allocate, false);
     USER_STACK_VIRT_END as *mut u8
-}
-
-pub unsafe fn map_new_user_stack(pml4: &mut PageTable, thread_index: usize) -> u64 {
-    let stack_top = USER_STACK_VIRT_END as u64 - (thread_index as u64 * STACK_SIZE as u64);
-
-    let top_page = stack_top - PAGE_SIZE as u64;
-    pml4.map(top_page, 1, MapType::Allocate, false);
-
-    stack_top
 }
 
 pub fn check_and_grow_user_stack(virt_addr: u64) -> bool {

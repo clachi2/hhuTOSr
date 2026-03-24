@@ -12,7 +12,7 @@
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 15.10.2025
  */
 
-use crate::kernel::syscalls::functions::functions::{sys_get_system_time, sys_process_count, sys_reboot, sys_thread_count};
+use crate::kernel::syscalls::functions::functions::{sys_free_memory_bytes, sys_get_system_time, sys_max_memory_bytes, sys_process_count, sys_reboot, sys_thread_count};
 use crate::kernel::syscalls::functions::hello::sys_hello_world;
 use crate::kernel::syscalls::functions::io::{
     sys_clear_screen, sys_draw_cursor, sys_erase_char, sys_erase_cursor, sys_get_char, sys_get_key,
@@ -66,6 +66,8 @@ impl SyscallFunctionTable {
                 sys_thread_count as *const u64,
                 sys_process_count as *const u64,
                 sys_ps as *const u64,
+                sys_free_memory_bytes as *const u64,
+                sys_max_memory_bytes as *const u64,
             ],
         }
     }

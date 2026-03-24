@@ -261,4 +261,24 @@ impl PfListAllocator {
         }
         kprintln!("--------------------------------");
     }
+
+    pub fn get_free_memory_bytes(&self) -> usize {
+        let mut total_free_bytes = 0;
+        let mut current = &self.head;
+
+        while let Some(ref region) = current.next {
+            total_free_bytes += region.size;
+            current = region;
+        }
+
+        total_free_bytes
+    }
+
+    pub fn get_max_memory_bytes(&self) -> usize {
+        self.max_addr.raw() as usize
+    }
+
+    pub fn get_free_frames(&self) -> usize {
+        self.get_free_memory_bytes() / PAGE_FRAME_SIZE
+    }
 }

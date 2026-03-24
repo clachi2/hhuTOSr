@@ -1,5 +1,6 @@
 use crate::devices::pit::get_system_time;
 use crate::kernel::cpu;
+use crate::kernel::paging::frames::FRAME_ALLOCATOR;
 use crate::kernel::processes::process::process_count;
 use crate::kernel::threads::scheduler::get_scheduler;
 
@@ -17,4 +18,12 @@ pub extern "C" fn sys_thread_count() -> u64 {
 
 pub extern "C" fn sys_process_count() -> u64 {
     process_count() as u64
+}
+
+pub extern "C" fn sys_free_memory_bytes() -> u64 {
+    FRAME_ALLOCATOR.lock().get_free_memory_bytes() as u64
+}
+
+pub extern "C" fn sys_max_memory_bytes() -> u64 {
+    FRAME_ALLOCATOR.lock().get_max_memory_bytes() as u64
 }

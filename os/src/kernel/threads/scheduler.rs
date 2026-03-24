@@ -131,7 +131,10 @@ impl Scheduler {
 
         let pid = current.get_pid();
         if pid != 0{
-            remove_process(pid);
+            let threads_with_same_pid = state.alive_threads.iter().filter(|&&(id, pidx, _)| pid == pidx).collect::<Vec<_>>();
+            if threads_with_same_pid.len() == 0 {
+                remove_process(pid);
+            }
         }
 
         // The idle thread never exits, so there must be at least one thread in the queue.

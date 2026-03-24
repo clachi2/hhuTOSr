@@ -14,8 +14,8 @@ pub const STACK_ALIGNMENT: usize = 8;
 /// Size of a stack entry (8 bytes, for 64-bit systems)
 pub const STACK_ENTRY_SIZE: usize = 8;
 
-/// Size of the kernel heap (100 MiB)
-pub const HEAP_SIZE: usize  = 10 * 10 * 1024 * 1024;
+/// Size of the kernel heap (16 MiB)
+pub const HEAP_SIZE: usize  = 16 * 1024 * 1024;
 
 /// Size of a physical page frame (4 KiB)
 pub const PAGE_FRAME_SIZE: usize = 0x1000;
