@@ -22,7 +22,7 @@ fn spinner_thread(args: &[&str]) {
         let now = usr_get_system_time();
         if now.saturating_sub(last_time) >= 250 {
             last_time = now;
-            term_print_at!(70, row, "Thread {:2}: {}  ", idx, SPINNER[frame % 4]);
+            term_print_at!(80, row, "Thread {:2}: {}  ", idx, SPINNER[frame % 4]);
             frame += 1;
         }
         usr_thread_yield();

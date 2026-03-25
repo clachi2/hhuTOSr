@@ -1,5 +1,5 @@
 use crate::font_8x8;
-use crate::user_api::{flush, usr_get_lfb_info};
+use crate::user_api::{flush, flush_rect, usr_get_lfb_info};
 use alloc::vec;
 use alloc::vec::Vec;
 
@@ -106,9 +106,26 @@ impl UserLfb {
         self.buffer.fill(BLACK);
     }
 
+    /// Clear the framebuffer by filling it with the given color.
+    pub fn clear_with(&mut self, color: u32) {
+        self.buffer.fill(color);
+    }
+
     /// flush the framebuffer to "real" kernels framebuffer via syscall
     pub fn flush(&self) {
         flush(self.buffer.as_ptr() as *const u8, self.buffer.len() * 4);
+    }
+
+    /// Flush a rectangular area of the framebuffer to the kernel framebuffer.
+    pub fn flush_rect(&self, x: u32, y: u32, width: u32, height: u32) {
+        flush_rect(
+            self.buffer.as_ptr() as *const u8,
+            self.buffer.len() * 4,
+            x,
+            y,
+            width,
+            height,
+        );
     }
 
     /// Draw a pixel at the specified (x, y) coordinates with the given color.
@@ -171,6 +188,11 @@ impl UserLfb {
 
     /// Draw a single character at the specified (x, y) coordinates with the given color.
     pub fn draw_char(&mut self, x: u32, y: u32, fg: u32, c: char) {
+        self.draw_char_with_bg(x, y, fg, BLACK, c);
+    }
+
+    /// Draw a single character at the specified (x, y) coordinates with the given colors.
+    pub fn draw_char_with_bg(&mut self, x: u32, y: u32, fg: u32, bg: u32, c: char) {
         let char_w = font_8x8::CHAR_WIDTH;
         let char_h = font_8x8::CHAR_HEIGHT;
         let row_bytes = ((char_w + 7) / 8) as usize;
@@ -183,7 +205,7 @@ impl UserLfb {
             for _byte in 0..row_bytes {
                 for bit in (0..8u32).rev() {
                     let on = (pixels[idx] >> bit) & 1 != 0;
-                    self.draw_pixel(xpos, y + row, if on { fg } else { BLACK });
+                    self.draw_pixel(xpos, y + row, if on { fg } else { bg });
                     xpos += 1;
                 }
                 idx += 1;
@@ -193,10 +215,15 @@ impl UserLfb {
 
     /// Draw a string at the specified (x, y) coordinates with the given color.
     pub fn draw_str(&mut self, x: u32, y: u32, fg: u32, s: &str) {
+        self.draw_str_with_bg(x, y, fg, BLACK, s);
+    }
+
+    /// Draw a string at the specified (x, y) coordinates with the given colors.
+    pub fn draw_str_with_bg(&mut self, x: u32, y: u32, fg: u32, bg: u32, s: &str) {
         let char_w = font_8x8::CHAR_WIDTH;
         let mut cur_x = x;
         for c in s.chars() {
-            self.draw_char(cur_x, y, fg, c);
+            self.draw_char_with_bg(cur_x, y, fg, bg, c);
             cur_x = cur_x.saturating_add(char_w);
         }
     }

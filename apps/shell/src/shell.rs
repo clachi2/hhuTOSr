@@ -12,13 +12,14 @@ use core::panic::PanicInfo;
 use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
 use usrlib::user_api::{
     usr_clear_screen, usr_draw_cursor, usr_dump_vmas, usr_erase_char, usr_erase_cursor,
-    usr_get_key, usr_map_heap, usr_reboot, usr_spawn_process, usr_spawn_thread, usr_thread_exit,
+    usr_get_key, usr_map_heap, usr_spawn_process, usr_spawn_thread, usr_thread_exit,
     usr_wait_pid,
 };
 use usrlib::{allocator, term_print, term_print_colored, term_println, term_println_colored};
+use usrlib::lfb::{HHU_GREEN, HHU_RED};
+use usrlib::print::print_banner;
 
-const RED: u32 = ((170u32) << 16) | ((0u32) << 8) | (0u32);
-const PROMPT_COLOR: u32 = ((151u32) << 16) | ((191u32) << 8) | (13u32);
+const PROMPT_COLOR: u32 = HHU_GREEN;
 
 const PROMPT: &str = "> ";
 
@@ -64,12 +65,8 @@ impl Shell {
         match command.as_str() {
             // internal
             "help" => self.cmd_help(),
-            "clear" => self.cmd_clear(),
-            "banner" => self.print_banner(),
             "history" => self.cmd_history(),
-            "vmas" => self.cmd_vmas(),
             "spinner" => self.cmd_spinner(),
-            "reboot" => usr_reboot(),
             "panic" => panic!("User triggered panic!"),
             "" => {}
             _ => {
@@ -79,7 +76,7 @@ impl Shell {
                         usr_wait_pid(pid);
                     }
                 } else {
-                    term_println_colored!(RED, "Error: Command not found '{}'", command);
+                    term_println_colored!(HHU_RED, "Error: Command not found '{}'", command);
                 }
             }
         }
@@ -87,30 +84,35 @@ impl Shell {
 
     fn cmd_help(&mut self) {
         term_println!("Available commands:");
-        term_println!("  -d <cmd>   - Run <cmd> without waiting (detach)");
         term_println!("  help       - Shows this help message");
-        term_println!("  clear      - Clears the screen");
+        term_println!("  -d <cmd>   - Run <cmd> without waiting (detach)");
         term_println!("  banner     - Shows welcome banner");
-        term_println!("  history    - Shows command history");
+        term_println!("  clear      - Clears the screen");
         term_println!("  echo       - Prints the given arguments");
-        term_println!("  time       - Shows system uptime");
-        term_println!("  ps         - Lists running processes");
-        term_println!("  kill <tid> - Kills the thread with the given TID");
         term_println!("  graphic    - Runs a graphic demo");
-        term_println!("  threads <n>- Spawns n spinner threads (use with -d)");
-        term_println!("  sound      - Plays a sound demo");
+        term_println!("  gui        - Start GUI for App launching");
+        term_println!("  hello      - Starts the hello process (from assignments)");
+        term_println!("  history    - Shows command history");
+        term_println!("  kill <tid> - Kills the thread with the given TID");
         term_println!("  mouse      - Runs a mouse demo");
-        term_println!("  pci_list   - Lists PCI devices");
         term_println!("  network    - Shows RTL8139 network controller info");
-        term_println!("  spinner    - Runs a spinner and process count demo");
-        term_println!("  reboot     - Reboots the system");
+        term_println!("  pci_list   - Lists PCI devices");
         term_println!("  panic      - Triggers a kernel panic");
+        term_println!("  ps         - Lists running processes");
+        term_println!("  reboot     - Reboots the system");
+        term_println!("  shell      - Starts another Shell process");
+        term_println!("  sound      - Plays a sound demo");
+        term_println!("  spinner    - Runs the Spinnner as thread inside Shell process");
+        term_println!("  syscalltest- Performs some test syscalls (from assignments");
+        term_println!("  threads <n>- Spawns n spinner threads (use with -d)");
+        term_println!("  time       - Shows system uptime");
+        term_println!("  vmas       - Prints VMAs for all processec");
     }
 
     pub fn run(&mut self) {
         self.cmd_spinner();
         usr_clear_screen();
-        self.print_banner();
+        print_banner();
         term_println!("Type 'help' for a list of commands.");
         self.print_prompt();
         usr_draw_cursor();
@@ -197,10 +199,6 @@ impl Shell {
         }
     }
 
-    fn cmd_clear(&mut self) {
-        usr_clear_screen();
-    }
-
     fn cmd_history(&mut self) {
         let history_stings: Vec<String> = self
             .history
@@ -213,36 +211,15 @@ impl Shell {
             term_println!("  {}", line);
         }
         if self.history.is_empty() {
-            term_println_colored!(RED, "  No commands in history.");
+            term_println_colored!(HHU_RED, "  No commands in history.");
         }
-    }
-
-    fn cmd_vmas(&mut self) {
-        usr_dump_vmas();
     }
 
     fn cmd_spinner(&mut self) {
         let tid = usr_spawn_thread(spinner, "spinner", "100");
         if tid == 0 {
-            term_println_colored!(RED, "Error: Failed to spawn thread.");
+            term_println_colored!(HHU_RED, "Error: Failed to spawn thread.");
         }
-    }
-
-    fn print_banner(&mut self) {
-        term_print_colored!(
-            RED,
-            "
-                               _ _              ____   _____
-                              | (_)            / __ \\ / ____|
-   ___ ___  _ __ _ __ ___   __| |_ _ __   __ _| |  | | (___
-  / __/ _ \\| '__| '__/ _ \\ / _` | | '_ \\ / _` | |  | |\\___ \\
- | (_| (_) | |  | | | (_) | (_| | | | | | (_| | |__| |____) |
-  \\___\\___/|_|  |_|  \\___/ \\__,_|_|_| |_|\\__, |\\____/|_____/
-                                          __/ |
-                                         |___/
-
-",
-        );
     }
 
     fn print_prompt(&mut self) {

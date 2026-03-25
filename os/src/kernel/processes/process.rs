@@ -3,6 +3,7 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use core::sync::atomic::AtomicUsize;
 use x86_64::VirtAddr;
+use usrlib::term_println;
 use crate::consts::USER_STACK_VIRT_START;
 use crate::kernel::processes::vma::{VmaType, VMA};
 use crate::library::mutex::Mutex;
@@ -114,6 +115,18 @@ pub fn dump_process_vmas(process_id: usize) {
         }
     } else {
         kprintln!("process with PID {} not found", process_id);
+    }
+}
+
+pub fn dump_all_process_vmas() {
+    let map = PROCESSES.lock();
+    for (pid, process) in map.iter().map(|(pid, process)| (*pid, process)) {
+        kprintln!("VMAs for process '{}' (PID {}):", process.name, pid);
+        term_println!("VMAs for process '{}' (PID {}):", process.name, pid);
+        for vma in &process.vmas {
+            kprintln!("  {:?}", vma);
+            term_println!("  {:?}", vma);
+        }
     }
 }
 

@@ -134,6 +134,21 @@ impl LFB {
         }
     }
 
+    /// Fill an axis-aligned rectangle with the given color.
+    pub fn fill_rect(&mut self, x: u32, y: u32, width: u32, height: u32, color: u32) {
+        if x >= self.width || y >= self.height {
+            return;
+        }
+
+        let x_end = x.saturating_add(width).min(self.width);
+        let y_end = y.saturating_add(height).min(self.height);
+        for py in y..y_end {
+            for px in x..x_end {
+                self.draw_pixel(px, py, color);
+            }
+        }
+    }
+
     /// Draw a pixel at the specified (x, y) coordinates with the given color.
     /// This method checks the bounds of the framebuffer before drawing
     /// and omits drawing if the coordinates are out of bounds.

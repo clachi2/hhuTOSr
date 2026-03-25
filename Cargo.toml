@@ -16,4 +16,9 @@ members = [
     "apps/sound",
     "apps/kill",
     "apps/threads",
+    "apps/gui",
+    "apps/clear",
+    "apps/reboot",
+    "apps/banner",
+    "apps/vmas",
 ]

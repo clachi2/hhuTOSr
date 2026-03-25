@@ -179,6 +179,7 @@ pub extern "C" fn startup(multiboot_info: &MultibootInfo) {
                 init_terminal();
                 let scheduler = get_scheduler();
                 scheduler.spawn_process("shell", "");
+                // scheduler.spawn_process("gui", "");
                 scheduler.schedule();
 
                 // let scheduler = get_scheduler();

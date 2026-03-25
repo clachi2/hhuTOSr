@@ -3,6 +3,33 @@ use crate::devices::lfb::{get_lfb, is_lfb_initialized};
 use crate::devices::mouse::get_mouse_buffer;
 use crate::devices::terminal::get_terminal;
 
+fn flush_lfb_region(buffer: *const u8, len: usize, x: u32, y: u32, width: u32, height: u32) {
+    if !is_lfb_initialized() {
+        return;
+    }
+
+    let lfb = get_lfb();
+    let lfb_lock = lfb.lock();
+    let (fb_width, fb_height) = lfb_lock.get_dimensions();
+    let expected_len = (fb_width * fb_height * 4) as usize;
+    if len < expected_len || x >= fb_width || y >= fb_height || width == 0 || height == 0 {
+        return;
+    }
+
+    let draw_width = width.min(fb_width - x);
+    let draw_height = height.min(fb_height - y);
+    let fb_addr = lfb_lock.get_address();
+    let pitch = lfb_lock.get_pitch();
+
+    unsafe {
+        for row in 0..draw_height {
+            let src = buffer.add((((y + row) * fb_width + x) * 4) as usize);
+            let dst = fb_addr.add(((y + row) * pitch + x * 4) as usize);
+            core::ptr::copy_nonoverlapping(src, dst, (draw_width * 4) as usize);
+        }
+    }
+}
+
 pub extern "C" fn sys_print(buffer: *const u8, len: usize) {
     let slice = unsafe { core::slice::from_raw_parts(buffer, len) };
     if let Ok(msg) = core::str::from_utf8(slice) {
@@ -66,6 +93,10 @@ pub extern "C" fn sys_clear_screen() {
     get_terminal().lock().clear();
 }
 
+pub extern "C" fn sys_set_terminal_mode(mode: u64) {
+    get_terminal().lock().set_upper_half_mode(mode != 0);
+}
+
 pub extern "C" fn sys_draw_cursor() {
     get_terminal().lock().draw_cursor();
 }
@@ -92,22 +123,21 @@ pub extern "C" fn sys_flush_lfb(buffer: *const u8, len: usize) {
     if !is_lfb_initialized() {
         return;
     }
+
     let lfb = get_lfb();
     let lfb_lock = lfb.lock();
     let (width, height) = lfb_lock.get_dimensions();
-    let expected_len = (width * height * 4) as usize;
-    if len < expected_len {
-        return;
-    }
-    let fb_addr = lfb_lock.get_address();
-    let pitch = lfb_lock.get_pitch();
-    unsafe {
-        for row in 0..height {
-            let src = buffer.add((row * width * 4) as usize);
-            let dst = fb_addr.add((row * pitch) as usize);
-            core::ptr::copy_nonoverlapping(src, dst, (width * 4) as usize);
-        }
-    }
+    drop(lfb_lock);
+
+    flush_lfb_region(buffer, len, 0, 0, width, height);
+}
+
+pub extern "C" fn sys_flush_lfb_rect(buffer: *const u8, len: usize, xy: u64, wh: u64) {
+    let x = (xy >> 32) as u32;
+    let y = xy as u32;
+    let width = (wh >> 32) as u32;
+    let height = wh as u32;
+    flush_lfb_region(buffer, len, x, y, width, height);
 }
 
 pub extern "C" fn sys_get_mouse_event() -> u64 {

@@ -1,5 +1,6 @@
 use core::fmt;
 use core::fmt::Write;
+use crate::lfb::HHU_RED;
 use crate::spinlock::Spinlock;
 use crate::user_api::usr_print;
 
@@ -16,6 +17,23 @@ impl Write for Writer {
 
 pub fn print(args: fmt::Arguments) {
     WRITER.lock().write_fmt(args).unwrap();
+}
+
+pub fn print_banner() {
+    crate::term_print_colored!(
+            HHU_RED,
+            "
+                               _ _              ____   _____
+                              | (_)            / __ \\ / ____|
+   ___ ___  _ __ _ __ ___   __| |_ _ __   __ _| |  | | (___
+  / __/ _ \\| '__| '__/ _ \\ / _` | | '_ \\ / _` | |  | |\\___ \\
+ | (_| (_) | |  | | | (_) | (_| | | | | | (_| | |__| |____) |
+  \\___\\___/|_|  |_|  \\___/ \\__,_|_|_| |_|\\__, |\\____/|_____/
+                                          __/ |
+                                         |___/
+
+",
+        );
 }
 
 #[macro_export]

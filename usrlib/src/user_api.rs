@@ -9,6 +9,9 @@
  *         Michael Schoettner, Heinrich Heine University Duesseldorf, 14.09.2023
  *         Fabian Ruhland, Heinrich Heine University Duesseldorf, 15.10.2025
  */
+use alloc::string::String;
+use alloc::vec;
+use alloc::vec::Vec;
 use core::arch::asm;
 
 /// System call numbers available to user programs.
@@ -52,7 +55,16 @@ pub enum SyscallFunction {
     NetworkInfo,
     PlayTetris,
     KillThread,
+    ReadAppList,
+    FlushLfbRect,
+    SetTerminalMode,
     NumSyscalls, // Last entry to count number of syscalls
+}
+
+#[repr(u64)]
+pub enum TerminalMode {
+    FullScreen,
+    UpperHalf,
 }
 
 /// Test system call printing "Hello, World!" to the serial console.
@@ -244,6 +256,18 @@ pub fn flush(buffer: *const u8, len: usize) {
     syscall2(SyscallFunction::FlushLfb, buffer as u64, len as u64);
 }
 
+pub fn flush_rect(buffer: *const u8, len: usize, x: u32, y: u32, width: u32, height: u32) {
+    let xy = ((x as u64) << 32) | (y as u64);
+    let wh = ((width as u64) << 32) | (height as u64);
+    syscall4(
+        SyscallFunction::FlushLfbRect,
+        buffer as u64,
+        len as u64,
+        xy,
+        wh,
+    );
+}
+
 pub struct MouseEvent {
     pub x: i8,
     pub y: i8,
@@ -290,6 +314,34 @@ pub fn usr_play_tetris() {
 
 pub fn usr_kill_thread(tid: usize) {
     syscall1(SyscallFunction::KillThread, tid as u64);
+}
+
+pub fn usr_set_terminal_mode(mode: TerminalMode) {
+    syscall1(SyscallFunction::SetTerminalMode, mode as u64);
+}
+
+pub fn usr_read_app_list() -> Vec<String> {
+    let required_len = syscall2(SyscallFunction::ReadAppList, 0, 0) as usize;
+    if required_len == 0 {
+        return Vec::new();
+    }
+
+    let mut buffer = vec![0u8; required_len];
+    let written = syscall2(
+        SyscallFunction::ReadAppList,
+        buffer.as_mut_ptr() as u64,
+        buffer.len() as u64,
+    ) as usize;
+
+    let used_len = written.min(buffer.len());
+    let Ok(apps) = core::str::from_utf8(&buffer[..used_len]) else {
+        return Vec::new();
+    };
+
+    apps.lines()
+        .filter(|name| !name.is_empty())
+        .map(|name| String::from(name))
+        .collect()
 }
 
 /// Perform a system call with 0 arguments.
