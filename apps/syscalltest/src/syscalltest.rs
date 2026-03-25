@@ -6,10 +6,7 @@ use alloc::vec::Vec;
 use core::panic::PanicInfo;
 use usrlib::consts::{USER_HEAP_SIZE, USER_HEAP_START};
 use usrlib::stack_string::StackString;
-use usrlib::user_api::{
-    usr_dump_vmas, usr_get_char, usr_get_system_time, usr_kprintln, usr_map_heap, usr_print,
-    usr_println, usr_process_get_id,
-};
+use usrlib::user_api::{usr_dump_vmas, usr_get_char, usr_get_system_time, usr_kprintln, usr_map_heap, usr_print, usr_println, usr_process_get_id, usr_thread_exit};
 use usrlib::{allocator, format_user};
 
 #[unsafe(link_section = ".main")]
@@ -39,6 +36,8 @@ fn main() {
     usr_println("VMA dump (kprint)...");
     usr_dump_vmas();
 
+    stack_test(10);
+
     let myvec: Vec<usize> = Vec::with_capacity(10000);
     usr_println(
         format!(
@@ -49,9 +48,20 @@ fn main() {
     ); // format works now again :)))
 
     usr_println("You can now type stuff: ");
-    loop {
+    for _ in 0..5 {
         let c = usr_get_char();
         usr_print(format_user!("You typed: '{}'\n", c).as_str());
+    }
+
+    usr_thread_exit();
+}
+
+fn stack_test(depth: u64) {
+    let large_array = [0u64; 512]; // 4KB on Stack
+    let _ = large_array;
+    usr_println(format!("depth: {}", depth).as_str());
+    if depth > 0 {
+        stack_test(depth - 1);
     }
 }
 

@@ -7,8 +7,11 @@
    ╚═════════════════════════════════════════════════════════════════════════╝
 */
 use crate::consts;
+use crate::consts::{PAGE_SIZE, STACK_ENTRY_SIZE, STACK_SIZE, USER_STACK_VIRT_END};
 use crate::kernel::coroutines::coroutine::Coroutine;
 use crate::kernel::cpu;
+use crate::kernel::paging::pages;
+use crate::kernel::paging::pages::PageTable;
 use crate::kernel::threads::scheduler;
 use crate::kernel::threads::scheduler::get_scheduler;
 use alloc::boxed::Box;
@@ -17,10 +20,7 @@ use alloc::vec::Vec;
 use core::arch::naked_asm;
 use core::fmt::Display;
 use core::sync::atomic::AtomicUsize;
-use crate::consts::{PAGE_SIZE, STACK_ENTRY_SIZE, STACK_SIZE, USER_STACK_VIRT_END};
 use core::{fmt, ptr};
-use crate::kernel::paging::pages;
-use crate::kernel::paging::pages::PageTable;
 use usrlib::user_api::usr_thread_exit;
 
 unsafe extern "C" {
@@ -64,7 +64,12 @@ unsafe extern "C" fn thread_start(stack_ptr: usize) {
 /// `current_stack_ptr` is a pointer to `stack_ptr` of the next coroutine (where the rsp is saved).
 /// `next_stack` is the value of `stack_ptr` of the next thread (the new rsp value).
 #[unsafe(naked)]
-unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: usize, next_stack_end: usize, next_pml4: usize) {
+unsafe extern "C" fn thread_switch(
+    current_stack_ptr: *mut usize,
+    next_stack: usize,
+    next_stack_end: usize,
+    next_pml4: usize,
+) {
     naked_asm!(
         // safe all registers
         "push r8",
@@ -84,18 +89,15 @@ unsafe extern "C" fn thread_switch(current_stack_ptr: *mut usize, next_stack: us
         "push rbp",
         "pushf",
         "mov [rdi], rsp", // save rsp to coroutine stack pointer
-
         // Update TSS rsp0 to 'next_stack_end' (third parameter)
-        "push rcx",           // Sichern
-        "push rsi",           // Sichern
+        "push rcx",     // Sichern
+        "push rsi",     // Sichern
         "mov rdi, rdx", // rdx = next_stack_end
         "call _tss_set_rsp0",
-        "pop rsi",            // Wiederherstellen
-        "pop rcx",            // Wiederherstellen
-
+        "pop rsi",      // Wiederherstellen
+        "pop rcx",      // Wiederherstellen
         "mov cr3, rcx", // load new address space (fourth parameter)
-
-        "mov rsp, rsi",   // move stack to next subroutine stack pointer
+        "mov rsp, rsi", // move stack to next subroutine stack pointer
         "call unlock_scheduler",
         // restore all registers
         "popf",
@@ -217,7 +219,7 @@ impl Thread {
         name: String,
         pml4: &'static mut PageTable,
         pid: usize,
-        user_stack_top: u64
+        user_stack_top: u64,
     ) -> Box<Thread> {
         let mut kernel_stack = Vec::<u64>::with_capacity(consts::STACK_SIZE / 8);
         kernel_stack.resize(kernel_stack.capacity(), 0);
@@ -238,7 +240,10 @@ impl Thread {
         });
 
         unsafe {
-            pages::map_user_stack(thread.pml4, user_stack_top);
+            let top_page_addr = user_stack_top
+                .checked_sub(PAGE_SIZE as u64)
+                .expect("user stack end below first page");
+            pages::map_user_stack(thread.pml4, top_page_addr);
         }
 
         thread.prepare_kernel_stack();
@@ -265,7 +270,12 @@ impl Thread {
             let next_stack_end = Thread::get_top_of_stack(&next.kernel_stack);
             let next_pml4_ptr = ptr::from_ref(next.pml4) as usize;
 
-            thread_switch(&mut current.stack_ptr, next.stack_ptr, next_stack_end as usize, next_pml4_ptr);
+            thread_switch(
+                &mut current.stack_ptr,
+                next.stack_ptr,
+                next_stack_end as usize,
+                next_pml4_ptr,
+            );
         }
     }
 
@@ -332,17 +342,14 @@ impl Thread {
         let mut user_str_infos = Vec::with_capacity(self.args.len());
 
         // copy args to user stack
-        for arg in self.args.iter().rev() { // rev() so arg 0 is ontop
+        for arg in self.args.iter().rev() {
+            // rev() so arg 0 is ontop
             let bytes = arg.as_bytes();
             user_stack_ptr -= bytes.len() as u64;
             user_stack_ptr &= !0xF; // align to 16 bytes
 
             unsafe {
-                ptr::copy_nonoverlapping(
-                    bytes.as_ptr(),
-                    user_stack_ptr as *mut u8,
-                    bytes.len()
-                );
+                ptr::copy_nonoverlapping(bytes.as_ptr(), user_stack_ptr as *mut u8, bytes.len());
             }
             user_str_infos.push((user_stack_ptr, bytes.len()));
         }
@@ -406,9 +413,7 @@ impl Thread {
 
     /// Get a pointer to the top of the given stack.
     fn get_top_of_stack(stack: &Vec<u64>) -> *const u64 {
-        unsafe {
-            ptr::from_ref(&stack[stack.len() - 1]).offset(1)
-        }
+        unsafe { ptr::from_ref(&stack[stack.len() - 1]).offset(1) }
     }
 }
 

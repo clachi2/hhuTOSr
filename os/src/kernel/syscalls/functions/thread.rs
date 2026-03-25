@@ -33,19 +33,38 @@ pub extern "C" fn sys_dump_vmas() {
     process::dump_all_process_vmas()
 }
 
-pub extern "C" fn sys_map_heap(user_heap_start: u64, user_heap_size: usize) {
+pub extern "C" fn sys_map_heap(user_heap_start: u64, user_heap_size: usize) -> u64 {
+    if user_heap_size == 0 {
+        return 0;
+    }
+
+    if user_heap_start % consts::PAGE_SIZE as u64 != 0 || user_heap_size % consts::PAGE_SIZE != 0 {
+        return 0;
+    }
+
+    let user_heap_end = match user_heap_start.checked_add(user_heap_size as u64) {
+        Some(end) => end,
+        None => return 0,
+    };
+
+    if user_heap_start < consts::USER_CODE_VIRT_START as u64
+        || user_heap_end > consts::USER_STACK_VIRT_START as u64
+    {
+        return 0;
+    }
+
+    let pid = get_scheduler().get_active_pid();
+    let heap_vma = VMA::new(user_heap_start, user_heap_end, VmaType::Heap);
+    if process::add_vma(pid, heap_vma).is_err() {
+        return 0;
+    }
+
     let pml4 = pages::read_cr3();
     unsafe {
         pages::map_user_heap(pml4, user_heap_start, user_heap_size);
     }
 
-    let pid = get_scheduler().get_active_pid();
-    let heap_vma = VMA::new(
-        user_heap_start,
-        user_heap_start + user_heap_size as u64,
-        VmaType::Heap,
-    );
-    let _ = process::add_vma(pid, heap_vma);
+    1
 }
 
 pub extern "C" fn sys_spawn_process(

@@ -7,9 +7,9 @@
  *  ║         https://os.phil-opp.com/allocator-designs/                      ║
  *  ╚═════════════════════════════════════════════════════════════════════════╝
  */
-use super::{Locked, align_up};
-use core::{ptr};
+use super::{align_up, Locked};
 use core::alloc::{GlobalAlloc, Layout};
+use core::ptr;
 // use hhu_tosr::shell_println;
 // use hhu_tosr::devices::cga_print::print;
 
@@ -112,9 +112,22 @@ impl LinkedListAllocator {
         if start >= block.end_addr() {
             return Err(());
         }
-        if size > block.end_addr() - start {
+
+        let alloc_end = start.checked_add(size).ok_or(())?;
+        if alloc_end > block.end_addr() {
             return Err(());
         }
+
+        let prefix_size = start - block.start_addr();
+        if prefix_size > 0 && prefix_size < size_of::<ListNode>() {
+            return Err(());
+        }
+
+        let suffix_size = block.end_addr() - alloc_end;
+        if suffix_size > 0 && suffix_size < size_of::<ListNode>() {
+            return Err(());
+        }
+
         Ok(())
     }
 
@@ -164,7 +177,6 @@ impl LinkedListAllocator {
         //     );
         //     current = region;
         // }
-        // TODO
     }
 
     pub unsafe fn alloc(&mut self, layout: Layout) -> *mut u8 {
@@ -177,12 +189,22 @@ impl LinkedListAllocator {
         let (size, align) = LinkedListAllocator::size_align(layout);
 
         if let Some(block) = self.find_free_block(size, align) {
-            let addr = align_up(block.start_addr(), align);
-            // let rest = block.size - (addr - block.start_addr()) - size;
-            let rest = block.size - size;
-            if rest > size_of::<ListNode>() {
+            let block_start = block.start_addr();
+            let block_end = block.end_addr();
+            let addr = align_up(block_start, align);
+            let alloc_end = addr + size;
+            let prefix_size = addr - block_start;
+            let suffix_size = block_end - alloc_end;
+
+            if prefix_size >= size_of::<ListNode>() {
                 unsafe {
-                    self.add_free_block(addr + size, rest);
+                    self.add_free_block(block_start, prefix_size);
+                }
+            }
+
+            if suffix_size >= size_of::<ListNode>() {
+                unsafe {
+                    self.add_free_block(alloc_end, suffix_size);
                 }
             }
             // println!(

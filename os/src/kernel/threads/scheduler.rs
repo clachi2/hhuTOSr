@@ -12,8 +12,8 @@ use crate::kernel::cpu;
 use crate::kernel::multiboot::MULTIBOOT_INFO;
 use crate::kernel::paging::pages;
 use crate::kernel::paging::pages::PageTable;
-use crate::kernel::processes::process::{Process, add_process, add_vma, remove_process};
-use crate::kernel::processes::vma::{VMA, VmaType};
+use crate::kernel::processes::process::{add_process, add_vma, remove_process, Process};
+use crate::kernel::processes::vma::{VmaType, VMA};
 use crate::kernel::threads::idle_thread::idle_thread;
 use crate::kernel::threads::thread;
 use crate::kernel::threads::thread::Thread;
@@ -348,24 +348,27 @@ impl Scheduler {
 
     /// Legt einen neuen Prozess an und startet ihn in einem User-Thread.
     pub fn spawn_process(&self, app_name: &str, args_str: &str) -> u64 {
+        let mb_info = MULTIBOOT_INFO.get().expect("Multiboot info missing");
+        let archive = mb_info.get_initrd_archive().expect("Initrd missing");
+
+        let mut app_size = None;
+        for file in archive.entries() {
+            if let Ok(name) = file.filename().as_str() {
+                if strings_equal(name, app_name) {
+                    app_size = Some(file.data().len() as u64);
+                    break;
+                }
+            }
+        }
+        let Some(app_size) = app_size else {
+            return 0;
+        };
+
         let process = Process::new(app_name);
         let pid = process.get_id();
         add_process(process);
 
         let args: Vec<String> = args_str.split_whitespace().map(|s| s.to_string()).collect();
-
-        let mb_info = MULTIBOOT_INFO.get().expect("Multiboot info missing");
-        let archive = mb_info.get_initrd_archive().expect("Initrd missing");
-
-        let mut app_size = 0;
-        for file in archive.entries() {
-            if let Ok(name) = file.filename().as_str() {
-                if strings_equal(name, app_name) {
-                    app_size = file.data().len() as u64;
-                    break;
-                }
-            }
-        }
         let aligned_app_size = (app_size + PAGE_SIZE as u64 - 1) & !(PAGE_SIZE as u64 - 1);
 
         let code_vma = VMA::new(
@@ -378,14 +381,17 @@ impl Scheduler {
             USER_STACK_VIRT_END as u64,
             VmaType::Stack,
         );
-        add_vma(pid, code_vma).expect("code VMA overlap");
-        add_vma(pid, stack_vma).expect("stack VMA overlap");
-
-        let thread = Thread::new_user_thread(app_name, args, String::from(app_name));
-        if thread.is_none() {
+        if add_vma(pid, code_vma).is_err() || add_vma(pid, stack_vma).is_err() {
+            remove_process(pid);
             return 0;
         }
-        let mut unwrapped_thread = thread.unwrap();
+
+        let Some(mut unwrapped_thread) =
+            Thread::new_user_thread(app_name, args, String::from(app_name))
+        else {
+            remove_process(pid);
+            return 0;
+        };
 
         unwrapped_thread.set_pid(pid);
         self.ready(unwrapped_thread);

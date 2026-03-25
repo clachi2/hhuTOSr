@@ -98,8 +98,8 @@ pub fn usr_dump_vmas() {
     syscall0(SyscallFunction::DumpVmas);
 }
 
-pub fn usr_map_heap(start: u64, size: usize) {
-    syscall2(SyscallFunction::MapHeap, start, size as u64);
+pub fn usr_map_heap(start: u64, size: usize) -> bool {
+    syscall2(SyscallFunction::MapHeap, start, size as u64) != 0
 }
 
 pub fn usr_get_system_time() -> usize {

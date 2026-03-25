@@ -6,7 +6,7 @@ use x86_64::VirtAddr;
 use usrlib::term_println;
 use crate::consts::USER_STACK_VIRT_START;
 use crate::kernel::processes::vma::{VmaType, VMA};
-use crate::library::mutex::Mutex;
+use spin::Mutex;
 
 static PROCESSES: Mutex<BTreeMap<usize, Process>> = Mutex::new(BTreeMap::new());
 static NEXT_PID: AtomicUsize = AtomicUsize::new(1);
